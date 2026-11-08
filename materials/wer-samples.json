@@ -1,0 +1,11 @@
+{
+  "note": "Constructed Callwell example. Invented caller lines and invented speech-recognition output, written to show typical error types. Not real calls, not a real ASR system's output.",
+  "pairs": [
+    {"id": "c1", "ref": "Hi, I'd like to book an appointment with Doctor Okafor next Tuesday.", "hyp": "Hi, I'd like to book an appointment with doctor oak offer next Tuesday.", "slot": "clinician name", "slotOk": false},
+    {"id": "c2", "ref": "My date of birth is the fourteenth of March, nineteen eighty two.", "hyp": "My date of birth is the fourth of March, nineteen eighty two.", "slot": "date of birth", "slotOk": false},
+    {"id": "c3", "ref": "Can I move it to the Riverside clinic instead?", "hyp": "Can I move it to the river side clinic instead?", "slot": "site", "slotOk": true},
+    {"id": "c4", "ref": "No, not Thursday. Tuesday.", "hyp": "No, not Thursday.", "slot": "day", "slotOk": false},
+    {"id": "c5", "ref": "Yes, that's right, the morning is fine.", "hyp": "Yes that's right the morning is fine.", "slot": "confirmation", "slotOk": true},
+    {"id": "c6", "ref": "Um, I sent a photo of the referral letter a minute ago.", "hyp": "I sent a photo of the referral letter a minute ago.", "slot": "none", "slotOk": true}
+  ]
+}

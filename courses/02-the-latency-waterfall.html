@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- social:start -->
+<meta name="description" content="Session 2 of 6. The bench: Callwell's reply latency as a waterfall from the caller's last word to the first syllable they hear, computed in your browser from dated vendor targets. Defaults land exactly on 800 ms; one tool call puts them 775 ms over; cutting the silence wait to 200 ms saves 125 ms and doubles the false cut-ins, measured on real conversation.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Learn with Phoebe">
+<meta property="og:title" content="The latency waterfall: where the second goes - learn voice and multimodal agents with phoebe">
+<meta property="og:description" content="Session 2 of 6. A computed latency waterfall with a tool-call break button and a silence-threshold anti-lever measured on real pauses.">
+<meta property="og:url" content="https://phoebefu6.github.io/learn-voice-multimodal-agents-with-phoebe/courses/02-the-latency-waterfall.html">
+<meta property="og:image" content="https://phoebefu6.github.io/learn-voice-multimodal-agents-with-phoebe/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="The latency waterfall: where the second goes - learn voice and multimodal agents with phoebe">
+<meta name="twitter:description" content="Session 2 of 6. Where a voice agent's second goes, computed live.">
+<meta name="twitter:image" content="https://phoebefu6.github.io/learn-voice-multimodal-agents-with-phoebe/assets/og-cover.png">
+<!-- social:end -->
+<title>Session 2 · The latency waterfall: where the second goes - learn voice and multimodal agents with phoebe</title>
+<link rel="stylesheet" href="../assets/style.css?v=2">
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="wrap">
+    <span class="crumb"><a href="../index.html">learn-voice-multimodal-agents-with-phoebe</a> / Session 2 of 6</span>
+    <button class="btn" id="toggle-all" type="button">Expand all</button>
+    <button class="btn primary" id="zoom-toggle" type="button">Projector zoom: off</button>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="eyebrow">Learn Voice and Multimodal Agents with Phoebe · Session 2 of 6</div>
+    <h1>The latency <span class="accent">waterfall</span>: where the second goes</h1>
+    <p class="sub">"Make it faster" is not a plan. A plan names the stage. Tonight Callwell's six-stage call flow from session 1 becomes a waterfall: every stage a bar, laid out in time from the caller's last word to the first syllable they hear, with the stages that run in parallel drawn in parallel. The page computes it live from dated vendor targets, names the largest stage on the path, and lets you break it: add a tool call, switch streaming off, cut the silence wait. One of those levers makes the number better and the calls worse, and the page measures how much worse on real conversation.</p>
+    <div class="chip-row">
+      <span class="chip level">🟡 Bench night</span>
+      <span class="chip audience">Bring your call-flow map</span>
+      <span class="chip audience">All clicking, no code</span>
+      <span class="chip time">45 min</span>
+    </div>
+    <div class="agenda">
+      <span class="a1" style="flex:1">0-3 · Welcome</span>
+      <span class="a2" style="flex:3">3-14 · Targets, the waterfall, the trap</span>
+      <span class="a3" style="flex:6">14-40 · The bench, rung by rung</span>
+      <span class="a4" style="flex:1">40-45 · Q&amp;A</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="section" id="intro">
+    <div class="section-kicker">
+      <span class="klabel">Part 0</span>
+      <h2>Where we start</h2>
+    </div>
+    <p class="lede">Constructed Callwell example. Callwell's team chose a cascaded pipeline with streaming at every stage (session 1) and wants to know if a caller will hear a reply fast enough. Nobody has built it yet, so the honest move is a budget: write down what each stage should take, using the best published figures, add them up the way the stages actually overlap, and see where it lands. Every input on the bench carries the place its default came from. None of them is a measurement of a product; your own traces will replace them.</p>
+
+    <div class="legend">
+      <span class="pill">🎫 Clear all three quiz questions to stamp your passport</span>
+      <span class="pill">Live = presented in the 45 minutes</span>
+      <span class="pill">Self-study = the full depth, after class</span>
+      <span class="pill">★ Build-along = run the ladder yourself</span>
+    </div>
+
+    <div class="callout win">
+      <p><strong>★ What you walk out with tonight.</strong> A target you can defend and the disagreement behind it; a latency budget for your own call flow with the critical path marked; the one stage to fix first; and a number for what your favourite shortcut costs in callers you talk over.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-1">
+    <div class="section-kicker">
+      <span class="klabel">Part 1 · covers what "fast enough" means</span>
+      <h2>How fast is fast enough? Four answers</h2>
+      <span class="tag concept">4 min live</span>
+    </div>
+    <p class="lede">There is no agreed number. There is a human baseline from conversation research and three published vendor or practitioner targets, and they are far apart. Pick one on purpose and write down why, because the bench compares everything against it.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A number line from 0 to 1,400 milliseconds. Humans: a hatched band from 7 to 469 ms for the per-language means in Stivers et al. 2009, with the overall mean of 208 ms marked. Practitioner target 800 ms (Kramer 2025). LiveKit: under 1,000 ms. Twilio: a mouth-to-ear median target of 1,115 ms with an upper limit of 1,400 ms.">
+        <defs>
+          <filter id="v2aSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="13" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="v2aHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#0B8470" stroke-width="1" opacity=".5"/></pattern>
+        </defs>
+        <style>
+          .v2aH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v2aL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v2aS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v2aB { font: 800 11px Inter, sans-serif; fill: #8F2C1C; }
+          .v2aV { font: 800 16px Inter, sans-serif; fill: #064E42; }
+          .v2aN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v2aH" x="30" y="24">FOUR ANSWERS TO "FAST ENOUGH", ON ONE RULER</text>
+
+        <g filter="url(#v2aSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M80 140 L840 140"/>
+          <rect x="84" y="128" width="251" height="24" rx="6" fill="url(#v2aHc)"/>
+          <circle cx="193" cy="140" r="6" fill="#064E42"/>
+          <path d="M514 122 L514 158" stroke="#C2412D" stroke-width="3"/>
+          <path d="M623 122 L623 158"/>
+          <path d="M685 122 L685 158"/>
+          <path d="M840 126 L840 154" stroke-dasharray="4 3"/>
+        </g>
+
+        <text class="v2aL" x="193" y="88" text-anchor="middle">humans: mean 208 ms, mode 0</text>
+        <text class="v2aS" x="193" y="106" text-anchor="middle">language means +7 to +469 ms</text>
+        <text class="v2aS" x="80" y="174" text-anchor="middle">0</text>
+        <text class="v2aS" x="297" y="174" text-anchor="middle">400</text>
+        <text class="v2aB" x="510" y="196" text-anchor="end">800 ms, practitioner target</text>
+        <text class="v2aS" x="510" y="212" text-anchor="end">Kramer 2025</text>
+        <text class="v2aL" x="623" y="106" text-anchor="middle">under 1,000 ms</text>
+        <text class="v2aS" x="623" y="88" text-anchor="middle">LiveKit docs</text>
+        <text class="v2aL" x="690" y="196">1,115 ms mouth-to-ear</text>
+        <text class="v2aS" x="690" y="212">Twilio target, upper 1,400</text>
+
+        <text class="v2aN" x="30" y="246">Humans: Stivers et al. 2009, ten languages. The other three are vendor or practitioner guidance, not measurements.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - the human gap sits in the first third of the ruler; every published agent target sits past 800 ms, and they disagree by 315 ms</figcaption>
+    </figure>
+
+    <details class="card" open>
+      <summary><span class="mode live">Live</span>The human baseline, and what it does not mean<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Stivers and colleagues (PNAS, 2009) timed responses to yes/no questions in ten languages, from Japanese to Danish. The overall mode was 0 ms, the median +100 ms and the mean +208 ms; the fastest language mean was Japanese at +7 ms and the slowest Danish at +469 ms. Levinson and Torreira (2015) add the puzzle: gaps are "of the order of 200 ms" yet producing even a single word takes "around 600 ms and up". People hit 200 ms only by planning their reply while the other person is still talking.</p>
+        <p>So "humans respond in 200 ms" is true as an average for one kind of turn, and misleading as a target. No pipeline that waits for silence before starting can reach it, and the data are question-answer pairs, not a booking conversation. Use it to explain why 1.5 seconds feels slow, not as a specification.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>The vendor and practitioner targets<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p><strong>800 ms</strong>: Kwindla Hultman Kramer's widely shared advice (GitHub gist, June 2025) is to aim for "800ms median voice-to-voice latency (eventually)", with 1,500 ms acceptable in a first proof of concept. <strong>Under one second</strong>: LiveKit's docs say conversations "feel natural when end-to-end response latency stays under one second". <strong>1,115 ms</strong>: Twilio's cascaded latency guide (November 2025) sets a mouth-to-ear median target of 1,115 ms with an upper limit of 1,400, and calls its numbers "starting benchmarks, not best-in-class".</p>
+        <p>Read the budgets behind them and they do not add up to their own headlines. Kramer's component budget (network 200, turn detection and transcription 400, model 500, voice 200) sums to 1,300 ms. Twilio's components (speech to text 350, model first token 375, voice 100) sum to 825 before network. The 800 ms builds get there by overlapping stages, which is what the bench shows.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>Two claims to drop<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p><strong>"500 ms is the magic number."</strong> No primary source was found for it on 2026-11-08; it circulates in vendor marketing. If you use it, attribute it to whoever said it and call it an opinion.</p>
+        <p><strong>"Callers hang up after N seconds."</strong> No primary source was found for any version of this. Twilio's guide explicitly makes no such claim. Measure your own abandonment instead (session 5).</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>Twilio budgets the trip as well as the models.</strong> Twilio's guide separates the platform turn gap (target 885 ms, measured where its servers can see) from the mouth-to-ear turn gap (1,115 ms), and its diagram puts about 40 ms between the caller's device and the media edge plus buffering and decoding on top. The phone network is a stage you pay for whichever model you choose.</p>
+    </div>
+  </section>
+
+  <section class="section" id="bench">
+    <div class="section-kicker">
+      <span class="klabel">Build-along · the bench</span>
+      <h2>Callwell's waterfall, computed live</h2>
+      <span class="tag demo">★ 26 min · the main event</span>
+    </div>
+    <p class="lede">The bench opens on Callwell's defaults: cascaded, streaming at every stage, preemptive generation on, a 500 ms end-of-turn silence threshold, target 800 ms. Read the verdict line first, then the four boxes, then the waterfall, then the table, which says where each default came from. Then work down the rungs in the build-along below. The bench must be able to report a worse number, and it will.</p>
+
+    <div id="vox-bench"></div>
+
+    <div class="callout tip">
+      <p><strong>Read it in this order.</strong> At defaults the verdict reads 800 ms to first audio, on target, with 0 ms to spare. The largest stage on the critical path is the end-of-turn wait at 500 ms. The language model's 375 ms bar is drawn dashed: with preemptive generation it ran in parallel with the wait and finished at 475 ms, then sat idle until the turn was confirmed. The false cut-in box reads 27.2 per 100 speaker changes, measured, and you will need it in Part 3.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-2">
+    <div class="section-kicker">
+      <span class="klabel">Part 2 · covers the critical path, preemption and the tool call</span>
+      <h2>The wait, the overlap and the tool</h2>
+      <span class="tag concept">4 min live</span>
+    </div>
+    <p class="lede">A waterfall is not a sum. Stages that can start at the same moment run in parallel, and only the longest chain, the critical path, decides when the caller hears anything. Shortening a stage off that path changes nothing. That is why "use a faster model" is often the wrong first move.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Callwell's default waterfall drawn by hand on a 0 to 1,000 ms scale. Uplink 0 to 100 ms. End-of-turn wait 100 to 600 ms, the largest stage, in coral. Speech recognition 100 to 450 ms and language model first token 100 to 475 ms, both hatched and dashed because they run in parallel with the wait. Speech synthesis 600 to 700 ms. Downlink 700 to 800 ms. A dashed target line at 800 ms. The critical path is uplink, wait, voice, downlink.">
+        <defs>
+          <filter id="v2bSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="29" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="v2bHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#0B8470" stroke-width="1" opacity=".5"/></pattern>
+        </defs>
+        <style>
+          .v2bH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v2bL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v2bS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v2bB { font: 800 11px Inter, sans-serif; fill: #8F2C1C; }
+          .v2bA { font: 700 11px Inter, sans-serif; fill: #064E42; }
+          .v2bN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v2bH" x="30" y="24">CALLWELL DEFAULTS: SIX BARS, FOUR ON THE CRITICAL PATH</text>
+        <text class="v2bS" x="240" y="48" text-anchor="middle">0</text>
+        <text class="v2bS" x="352" y="48" text-anchor="middle">200</text>
+        <text class="v2bS" x="464" y="48" text-anchor="middle">400</text>
+        <text class="v2bS" x="576" y="48" text-anchor="middle">600</text>
+        <text class="v2bB" x="688" y="48" text-anchor="middle">800</text>
+        <text class="v2bS" x="800" y="48" text-anchor="middle">1,000 ms</text>
+
+        <g filter="url(#v2bSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="240" y="62" width="56" height="20" rx="4" fill="#0B8470"/>
+          <rect x="296" y="94" width="280" height="20" rx="4" fill="#C2412D"/>
+          <rect x="296" y="126" width="196" height="20" rx="4" fill="url(#v2bHc)" stroke-dasharray="5 4"/>
+          <rect x="296" y="158" width="210" height="20" rx="4" fill="url(#v2bHc)" stroke-dasharray="5 4"/>
+          <rect x="576" y="190" width="56" height="20" rx="4" fill="#0B8470"/>
+          <rect x="632" y="222" width="56" height="20" rx="4" fill="#0B8470"/>
+          <path d="M508 168 C540 168 556 186 572 196" stroke="#4A5E59" stroke-width="1.4" stroke-dasharray="3 3"/>
+        </g>
+        <path d="M688 56 L688 252" stroke="#C2412D" stroke-width="2" stroke-dasharray="6 4" fill="none"/>
+
+        <text class="v2bL" x="224" y="77" text-anchor="end">caller audio uplink</text>
+        <text class="v2bL" x="224" y="109" text-anchor="end">end-of-turn wait</text>
+        <text class="v2bS" x="224" y="141" text-anchor="end">speech to text</text>
+        <text class="v2bS" x="224" y="173" text-anchor="end">model first token</text>
+        <text class="v2bL" x="224" y="205" text-anchor="end">voice first audio</text>
+        <text class="v2bL" x="224" y="237" text-anchor="end">audio downlink</text>
+        <text class="v2bA" x="864" y="77" text-anchor="end">100 ms</text>
+        <text class="v2bB" x="864" y="109" text-anchor="end">500 ms, largest</text>
+        <text class="v2bS" x="864" y="141" text-anchor="end">350, parallel</text>
+        <text class="v2bS" x="864" y="173" text-anchor="end">375, parallel</text>
+        <text class="v2bA" x="864" y="205" text-anchor="end">100 ms</text>
+        <text class="v2bA" x="864" y="237" text-anchor="end">100 ms</text>
+        <text class="v2bB" x="688" y="270" text-anchor="middle">first syllable at 800 ms</text>
+
+        <text class="v2bN" x="30" y="304">The model was ready at 475 ms and waited 125 ms for the turn to close. The wait is the path.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - two of six bars are hidden behind the wait; making either faster moves the caller's 800 ms by nothing</figcaption>
+    </figure>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Preemptive generation: start thinking before the turn is over<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>LiveKit's field guide (April 2026) says "Preemptive generation is enabled by default" in LiveKit Agents: the model starts "as soon as a partial transcript of the user's speech is available", while the turn detector is still deciding. On the bench that is why the model bar starts at 100 ms. Untick it and the model waits for the turn to close and the final transcript: the total goes from 800 to 1,175 ms, 375 ms over target, with the wait still the largest stage.</p>
+        <p>The honest catch, in LiveKit's own words: if the final transcript differs and the reply has to be regenerated, "latency will not be improved". The bench assumes the guess was right. It is the machine version of what Levinson and Torreira describe in people: plan the reply while the other person is still talking.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>The break button: one tool call<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Press "Add a tool call" at defaults. The model's first output is now a request to Callwell's booking system, which waits for the confirmed turn (you do not book on a guess), takes a modelled 400 ms, and then the model runs again for another 375 ms before the voice can start. The verdict reads 1,575 ms to first audio, 775 ms over the 800 ms target. Nothing about the tool call streams, and nothing can overlap it.</p>
+        <p>Two fixes, neither on the bench: say something while the tool runs, which OpenAI's guide says to measure separately from the real answer, or make the tool faster and call it earlier. Timing each tool as its own span is how you find out which; tracing per stage is taught in <a href="https://phoebefu6.github.io/learn-ai-observability-with-phoebe/courses/b4-cost-and-latency-per-span.html">learn-ai-observability, cost and latency per span</a>.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>Streaming off, and the reply-length trap<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Untick streaming and every stage waits for the whole output of the one before: speech recognition starts after the wait, the model writes the whole 40-token reply (20 ms per token, modelled), the voice synthesises all of it (10 ms per token, modelled), and only then does audio leave. The total is 2,725 ms and the largest stage is no longer the wait: it is "Rest of the reply" at 800 ms. Without streaming, a longer answer is a slower answer; with it, length barely touches the first syllable.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="section" id="part-3">
+    <div class="section-kicker">
+      <span class="klabel">Part 3 · covers the anti-lever and the pipeline comparison</span>
+      <h2>The trap: cut the wait</h2>
+      <span class="tag concept">4 min live</span>
+    </div>
+    <p class="lede">The wait is the largest stage, so the obvious move is to shorten it. Slide the threshold down and the total falls. What the total does not show is the caller who paused for breath in the middle of their date of birth and got interrupted. The bench measures that second number on 24 real two-person conversations where the speakers could not see each other, the nearest open analogue of a phone call.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Two bar columns for four silence thresholds. At 800 ms: reply at 1,100 ms, 14.2 false cut-ins per 100 speaker changes. At 500 ms: 800 ms and 27.2. At 300 ms: 675 ms and 44.4. At 200 ms: 675 ms and 55.2. Below 375 ms the total stops falling while the cut-ins keep rising.">
+        <defs>
+          <filter id="v2cSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="31" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <style>
+          .v2cH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v2cL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v2cS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v2cB { font: 800 12px Inter, sans-serif; fill: #8F2C1C; }
+          .v2cV { font: 800 12px Inter, sans-serif; fill: #064E42; }
+          .v2cA { font: 700 11px Inter, sans-serif; fill: #064E42; }
+          .v2cN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v2cH" x="30" y="24">TWO NUMBERS FOR ONE SLIDER: THE TOTAL FALLS, THEN STOPS; THE CUT-INS DO NOT</text>
+        <text class="v2cA" x="150" y="54">caller hears the reply (ms)</text>
+        <text class="v2cB" x="520" y="54">false cut-ins per 100 speaker changes</text>
+
+        <g filter="url(#v2cSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="150" y="70" width="183" height="26" rx="4" fill="#0B8470"/>
+          <rect x="150" y="120" width="133" height="26" rx="4" fill="#0B8470"/>
+          <rect x="150" y="170" width="113" height="26" rx="4" fill="#0B8470"/>
+          <rect x="150" y="220" width="113" height="26" rx="4" fill="#0B8470"/>
+          <rect x="520" y="70" width="47" height="26" rx="4" fill="#F07A63"/>
+          <rect x="520" y="120" width="91" height="26" rx="4" fill="#F07A63"/>
+          <rect x="520" y="170" width="148" height="26" rx="4" fill="#F07A63"/>
+          <rect x="520" y="220" width="184" height="26" rx="4" fill="#C2412D"/>
+        </g>
+
+        <text class="v2cL" x="136" y="88" text-anchor="end">800 ms wait</text>
+        <text class="v2cL" x="136" y="138" text-anchor="end">500 ms wait</text>
+        <text class="v2cL" x="136" y="188" text-anchor="end">300 ms wait</text>
+        <text class="v2cL" x="136" y="238" text-anchor="end">200 ms wait</text>
+        <text class="v2cV" x="343" y="88">1,100</text>
+        <text class="v2cV" x="293" y="138">800</text>
+        <text class="v2cV" x="273" y="188">675</text>
+        <text class="v2cV" x="273" y="238">675</text>
+        <text class="v2cB" x="577" y="88">14.2</text>
+        <text class="v2cB" x="621" y="138">27.2</text>
+        <text class="v2cB" x="678" y="188">44.4</text>
+        <text class="v2cB" x="714" y="238">55.2</text>
+
+        <text class="v2cN" x="30" y="282">Below 375 ms the model is on the critical path: the reply stops getting faster, the cut-ins keep climbing.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - from 300 to 200 ms the reply gains nothing and the caller is talked over 10.8 more times per 100 speaker changes</figcaption>
+    </figure>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>What the cut-in number measures<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>The sample is 24 dialogues from the HCRC Map Task Corpus (CC BY 4.0 per its download page), recorded in the condition where the two speakers could not see each other. Every silence is classified by who spoke either side: a <strong>pause</strong> when the same person carried on, a <strong>gap</strong> when the other person took the turn. There are 3,520 pauses, 3,014 gaps and 1,218 overlapping handovers. A pure silence timer set to T would have started talking in every pause of T or longer, while the speaker had not finished. At 500 ms that is 1,149 pauses, 27.2 per 100 speaker changes; at 200 ms it is 55.2.</p>
+        <p>The limits, said out loud: these are people giving map directions, not callers booking a clinic; nobody in the sample was talking to a machine; and a real turn detector also listens to words and pitch, not just silence (session 3). Treat the numbers as the cost of a pure timer, measured on real speech, not as Callwell's future complaint rate.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Speech-to-speech on the same bench<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Switch the pipeline to speech-to-speech. The model's first audio is a modelled 375 ms (no vendor publishes the figure; it is set equal to the cascade's model budget so the comparison isolates the hand-offs). The total is 1,075 ms, 275 ms over target: it saves the separate voice stage, but the model cannot start until the turn is confirmed, so it cannot hide behind the wait the way the cascade's preemptive model does. Cut its threshold to 200 ms and it reaches 775 ms, with the same 55.2 cut-ins.</p>
+        <p>That is not a ranking. LiveKit rates realtime models fastest, and with a quicker first audio they would be. The point is that the label decides nothing; the inputs and the overlap do.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>Researchers measured the timer problem in 2010.</strong> Heldner and Edlund analysed three corpora, including this one, and found that pauses and gaps have similar length distributions: in HCRC Map Task a 500 ms threshold caught 47.5% of the gaps and 56.0% of the pauses. Our segmentation gives lower levels, 35.4% of gaps and 32.6% of pauses at 500 ms, because we used the corpus's word timings rather than their own speech detection. The conclusion is the same in both: a silence timer cannot tell a thinking pause from a finished turn.</p>
+    </div>
+  </section>
+
+  <section class="section" id="demo-1">
+    <div class="section-kicker">
+      <span class="klabel">Build-along</span>
+      <h2>Run the ladder, then write Callwell's budget</h2>
+      <span class="tag demo">★ everyone clicks</span>
+    </div>
+    <p class="lede">Six rungs, each a single change from the defaults. Press "Reset to defaults" before each one. Say out loud what moved, what did not, and which stage the verdict names. Every number below is one the bench prints.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The ladder as bars against an 800 ms target line. Defaults 800 ms. Add a tool call 1,575 ms. Preemptive off 1,175 ms. Streaming off 2,725 ms. Speech-to-speech 1,075 ms. Only the defaults reach the line.">
+        <defs>
+          <filter id="v2dSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="43" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="v2dHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#C2412D" stroke-width="1" opacity=".5"/></pattern>
+        </defs>
+        <style>
+          .v2dH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v2dL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v2dS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v2dB { font: 800 11px Inter, sans-serif; fill: #8F2C1C; }
+          .v2dV { font: 800 12px Inter, sans-serif; fill: #064E42; }
+          .v2dN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v2dH" x="30" y="24">FIVE RUNGS AGAINST ONE TARGET (CALLWELL, COMPUTED)</text>
+
+        <g filter="url(#v2dSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="260" y="60" width="137" height="30" rx="4" fill="#0B8470"/>
+          <rect x="260" y="112" width="270" height="30" rx="4" fill="url(#v2dHc)"/>
+          <rect x="260" y="164" width="201" height="30" rx="4" fill="#A8DCD1"/>
+          <rect x="260" y="216" width="467" height="30" rx="4" fill="url(#v2dHc)"/>
+          <rect x="260" y="268" width="184" height="30" rx="4" fill="#A8DCD1"/>
+        </g>
+        <path d="M397 48 L397 306" stroke="#C2412D" stroke-width="2" stroke-dasharray="6 4" fill="none"/>
+
+        <text class="v2dL" x="240" y="80" text-anchor="end">defaults</text>
+        <text class="v2dL" x="240" y="132" text-anchor="end">add a tool call</text>
+        <text class="v2dL" x="240" y="184" text-anchor="end">preemptive off</text>
+        <text class="v2dL" x="240" y="236" text-anchor="end">streaming off</text>
+        <text class="v2dL" x="240" y="288" text-anchor="end">speech-to-speech</text>
+        <text class="v2dV" x="407" y="80">800 ms</text>
+        <text class="v2dV" x="540" y="132">1,575 ms</text>
+        <text class="v2dV" x="471" y="184">1,175 ms</text>
+        <text class="v2dV" x="737" y="236">2,725 ms</text>
+        <text class="v2dV" x="454" y="288">1,075 ms</text>
+        <text class="v2dB" x="403" y="44">target 800</text>
+
+        <text class="v2dN" x="30" y="326">Each rung is one change from the defaults. Inputs are dated vendor targets and modelled rates; yours will differ.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - the defaults touch the line with nothing to spare, and every single change pushes past it; the tool call costs the most of any one realistic change</figcaption>
+    </figure>
+
+    <div class="steps">
+      <div class="step">
+        <p><strong>Rung 1, defaults.</strong> Read the verdict and the table. Note which bars are dashed and why.</p>
+        <div class="prompt-box good"><span class="label">★ Rung 1 · what the bench prints</span>800 ms to first audio: on target, 0 ms to spare against 800 ms.
+Fix first: end-of-turn wait (500 ms on the critical path).
+False cut-ins at 500 ms: 27.2 per 100 speaker changes</div>
+      </div>
+      <div class="step">
+        <p><strong>Rung 2, add a tool call.</strong> The break button. Watch the coral bar appear after the wait.</p>
+        <div class="prompt-box good"><span class="label">★ Rung 2 · the booking lookup</span>1,575 ms to first audio: 775 ms over the 800 ms target.
+Fix first: end-of-turn wait (500 ms on the critical path).
+Write: what will the caller hear during the 400 ms tool call?</div>
+      </div>
+      <div class="step">
+        <p><strong>Rung 3, reset, then untick preemptive generation.</strong> The model now waits for the confirmed turn.</p>
+        <div class="prompt-box good"><span class="label">★ Rung 3 · no early start</span>1,175 ms to first audio: 375 ms over the 800 ms target.
+The model bar moves from "in parallel" to the critical path.</div>
+      </div>
+      <div class="step">
+        <p><strong>Rung 4, reset, then untick streaming.</strong> The largest stage changes name.</p>
+        <div class="prompt-box good"><span class="label">★ Rung 4 · nothing streams</span>2,725 ms to first audio: 1,925 ms over the 800 ms target.
+Fix first: rest of the reply (800 ms on the critical path).</div>
+      </div>
+      <div class="step">
+        <p><strong>Rung 5, reset, then slide the threshold to 300, then 200.</strong> The anti-lever. Read both numbers each time.</p>
+        <div class="prompt-box good"><span class="label">★ Rung 5 · cut the wait</span>300 ms: 675 ms to first audio, false cut-ins 44.4
+200 ms: 675 ms to first audio, false cut-ins 55.2
+Fix first at both: LLM first token (375 ms on the critical path).
+The extra 100 ms of cutting bought 0 ms and 10.8 more cut-ins.</div>
+      </div>
+      <div class="step">
+        <p><strong>Rung 6, reset, switch to speech-to-speech; then write the budget.</strong> Read the total, then write Callwell's latency budget as a table you could put in a design doc.</p>
+        <div class="prompt-box good"><span class="label">★ Rung 6 · the budget</span>Speech-to-speech at defaults: 1,075 ms, 275 ms over target.
+
+Callwell latency budget (cascaded, streaming, preemptive)
+  target          800 ms median, first syllable at the ear
+  uplink          100   downlink   100   (measure on real calls)
+  end-of-turn     500   (do NOT cut below 375; see cut-ins)
+  model 1st token 375   runs in parallel with the wait
+  voice 1st audio 100
+  tool calls      always preceded by a spoken acknowledgement
+Review when traces replace every number above with a p50 and p95.</div>
+      </div>
+    </div>
+
+    <div class="callout tip">
+      <p><strong>Every number on your budget is a hypothesis.</strong> The bench adds published targets; it measures no product. The first week of real calls replaces each input with a measured median and 95th percentile, per stage, from traces. OpenAI's guide says to compare both percentiles across similar calls, and session 5 builds those measures.</p>
+    </div>
+  </section>
+
+  <section class="section" id="exercise">
+    <div class="section-kicker">
+      <span class="klabel">Homework</span>
+      <h2>Before session 3</h2>
+      <span class="tag exercise">30 min</span>
+    </div>
+    <ol>
+      <li><strong>Put your own inputs in.</strong> Use your vendors' published figures, or your own measurements if you have them, by reading the bench's table and adjusting your design doc. Which stage is on your critical path?</li>
+      <li><strong>Check your session 1 phone timings.</strong> Were the three silences you timed under 800 ms, near Twilio's 1,115, or past 1,400?</li>
+      <li><strong>List every tool call in your flow</strong> and write the acknowledgement the caller hears during each one.</li>
+      <li><strong>Pick your target and write why.</strong> One sentence, naming whose number it is. Teams that skip this argue about latency forever.</li>
+    </ol>
+  </section>
+
+  <section class="section" id="quiz">
+    <div class="section-kicker">
+      <span class="klabel">Check yourself</span>
+      <h2>Three questions</h2>
+    </div>
+    <p>Clear all three and session 2 gets stamped in your passport.</p>
+
+    <div class="quiz-q" data-answer="1">
+      <p class="qtext">1 · At Callwell's defaults, a vendor offers a model with a 250 ms first token instead of 375 ms. What happens to the 800 ms total?</p>
+      <button class="qopt" type="button">A · It drops by 125 ms, to 675 ms</button>
+      <button class="qopt" type="button">B · Nothing: with preemptive generation the model is off the critical path, waiting for the 500 ms end-of-turn wait</button>
+      <button class="qopt" type="button">C · It rises, because faster models stream less</button>
+      <button class="qopt" type="button">D · It drops by 250 ms</button>
+      <p class="qwhy">At defaults the model finishes at 475 ms and the turn closes at 600 ms. A faster model finishes earlier and waits longer. Only a change to a stage on the critical path (uplink, wait, voice, downlink) moves the total.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="0">
+      <p class="qtext">2 · Cutting the silence threshold from 300 ms to 200 ms on the bench changes the total by how much, and the false cut-ins by how much?</p>
+      <button class="qopt" type="button">A · Total unchanged at 675 ms; cut-ins up from 44.4 to 55.2 per 100 speaker changes</button>
+      <button class="qopt" type="button">B · Total down 100 ms; cut-ins unchanged</button>
+      <button class="qopt" type="button">C · Total down 100 ms; cut-ins down</button>
+      <button class="qopt" type="button">D · Neither changes; the threshold only matters for speech-to-speech</button>
+      <p class="qwhy">Below 375 ms the model's first token, not the wait, is on the critical path, so the total stays at 675 ms. The cut-in count is measured on real pauses and keeps climbing as the threshold falls. That is the anti-lever: a better latency number bought with worse calls, and below 375 ms not even the latency improves.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="3">
+      <p class="qtext">3 · Which statement about latency targets is supported by the sources?</p>
+      <button class="qopt" type="button">A · Research shows callers hang up after two seconds</button>
+      <button class="qopt" type="button">B · 500 ms is the established industry standard</button>
+      <button class="qopt" type="button">C · Agents should aim for the human 200 ms gap</button>
+      <button class="qopt" type="button">D · Published targets disagree: 800 ms (Kramer), under 1,000 ms (LiveKit), 1,115 ms mouth-to-ear (Twilio), against a human mean of about 208 ms</button>
+      <p class="qwhy">No primary source was found for A or B. The human mean is real (Stivers et al. 2009) but people reach it by planning while the other person talks, which no silence-waiting pipeline can do. Pick a target, name its source, and say why.</p>
+    </div>
+
+    <p class="quiz-score"></p>
+  </section>
+
+  <section class="section" id="official">
+    <div class="section-kicker">
+      <span class="klabel">Sources covered</span>
+      <h2>What this session teaches, and where it came from</h2>
+    </div>
+    <div class="covered">
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">HCRC Map Task Corpus, 24 no-eye-contact dialogues (CC BY 4.0 per download page)</span><span class="note">Pause and gap durations measured live; the false cut-in rate is computed from them in your browser</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">Stivers et al. (2009) PNAS; Levinson and Torreira (2015); Heldner and Edlund (2010)</span><span class="note">Human gap timing, production latency, and the pause-gap overlap a timer cannot separate</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">Twilio cascaded latency guide (2025-11-17); Kramer gist (2025-06-23); LiveKit docs and field guide</span><span class="note">Targets and component budgets, vendor or practitioner guidance; preemptive generation on by default</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">OpenAI Realtime API reference; LiveKit EndpointingOptions; ElevenLabs latency guide</span><span class="note">The 500 ms silence defaults and the roughly 100 ms voice figure behind the bench's inputs, dated 2026-11-08</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">Uplink and downlink split, speech-to-speech first audio, tool time, reply length and per-token rates</span><span class="note">Modelled inputs, labelled on the bench; replace with your own traces</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">Callwell's stages and budget</span><span class="note">Constructed for teaching</span></div>
+    </div>
+    <p class="mono" style="margin-top:14px">Every fact on this page, and its verification tier, is recorded in the course's source map.</p>
+  </section>
+
+  <section class="cheat" id="cheatsheet">
+    <h3>Session 2 cheat sheet <span>· pin this</span></h3>
+    <div class="grid-2">
+      <div class="cheat-item"><b>Pick a target, name its owner</b><span>800 Kramer, under 1,000 LiveKit, 1,115 Twilio mouth-to-ear. Humans: mean 208 ms.</span></div>
+      <div class="cheat-item"><b>Fix the critical path</b><span>A faster stage off the path changes nothing. At Callwell defaults the wait is the path.</span></div>
+      <div class="cheat-item"><b>Overlap is the trick</b><span>Streaming plus preemptive generation hide the model behind the wait: 800 against 1,175 ms.</span></div>
+      <div class="cheat-item"><b>Tool calls do not stream</b><span>One lookup: 1,575 ms. Say something while it runs, and time it separately.</span></div>
+      <div class="cheat-item"><b>The anti-lever</b><span>Cutting the wait to 200 ms: 675 ms and 55.2 false cut-ins per 100. Below 375 it buys nothing.</span></div>
+      <div class="cheat-item"><b>Drop two myths</b><span>No primary source for "500 ms magic" or "callers hang up after N seconds".</span></div>
+    </div>
+  </section>
+
+  <div class="callout next">
+    <span class="nx-pill">Next session</span>
+    <p>The silence timer is the largest stage and cutting it talks over callers. Session 3 replaces "wait for silence" with better ways to decide a turn is over: semantic turn detection, interruption handling that keeps the context honest, and settings you tune on real pauses instead of guessing.</p>
+  </div>
+
+  <footer class="pagefoot">
+    <span>Session 2 of 6 · learn-voice-multimodal-agents-with-phoebe · by Phoebe Fu &nbsp;·&nbsp; 📚 <a href="https://phoebefu6.github.io/learn-with-phoebe/">Learn with Phoebe ↗</a></span>
+    <span><a href="01-the-voice-pipeline.html">← Prev: The voice pipeline</a> &nbsp;·&nbsp; <a href="03-turn-taking.html">Next: Turn-taking →</a></span>
+  </footer>
+
+</main>
+
+<script src="../assets/app.js?v=1"></script>
+<script src="../assets/vox-sample.js?v=1"></script>
+<script src="../assets/vox-live.js?v=3"></script>
+</body>
+</html>

@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- social:start -->
+<meta name="description" content="Session 3 of 6. When should a voice agent speak, and when should it stop? Voice activity detection drawn as a state machine, silence timers measured against real pauses and gaps, semantic turn detection that reads the words, and barge-in with truncation so the model only remembers what the caller heard. Then tune Callwell's end-of-turn settings moment by moment.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Learn with Phoebe">
+<meta property="og:title" content="Turn-taking: when to speak, when to stop - learn voice and multimodal agents with phoebe">
+<meta property="og:description" content="Session 3 of 6. A silence timer cannot tell a thinking pause from a finished turn, measured on real conversation. Semantic turn detection, barge-in and truncation, and a per-moment settings map.">
+<meta property="og:url" content="https://phoebefu6.github.io/learn-voice-multimodal-agents-with-phoebe/courses/03-turn-taking.html">
+<meta property="og:image" content="https://phoebefu6.github.io/learn-voice-multimodal-agents-with-phoebe/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Turn-taking: when to speak, when to stop - learn voice and multimodal agents with phoebe">
+<meta name="twitter:description" content="Session 3 of 6. Timers against meaning, barge-in and truncation, and end-of-turn settings tuned per moment.">
+<meta name="twitter:image" content="https://phoebefu6.github.io/learn-voice-multimodal-agents-with-phoebe/assets/og-cover.png">
+<!-- social:end -->
+<title>Session 3 · Turn-taking: when to speak, when to stop - learn voice and multimodal agents with phoebe</title>
+<link rel="stylesheet" href="../assets/style.css?v=2">
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="wrap">
+    <span class="crumb"><a href="../index.html">learn-voice-multimodal-agents-with-phoebe</a> / Session 3 of 6</span>
+    <button class="btn" id="toggle-all" type="button">Expand all</button>
+    <button class="btn primary" id="zoom-toggle" type="button">Projector zoom: off</button>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="eyebrow">Learn Voice and Multimodal Agents with Phoebe · Session 3 of 6</div>
+    <h1><span class="accent">Turn-taking</span>: when to speak, when to stop</h1>
+    <p class="sub">A text agent knows the user has finished: they pressed send. A voice agent has to guess, from silence and from the words, many times a call. Guess too early and it talks over a caller who was only thinking. Guess too late and every reply carries dead air. And when the caller talks over the agent, it has to stop, and remember only the part of its sentence the caller actually heard. Tonight we take apart the three mechanisms that decide all of that: the voice activity detector, the end-of-turn decision, and barge-in with truncation. Then we tune Callwell's settings one moment of the call at a time.</p>
+    <div class="chip-row">
+      <span class="chip level">🟡 Core</span>
+      <span class="chip audience">Builders who shipped a text agent</span>
+      <span class="chip audience">One live widget, one config block</span>
+      <span class="chip time">45 min</span>
+    </div>
+    <div class="agenda">
+      <span class="a1" style="flex:1">0-3 · Welcome</span>
+      <span class="a2" style="flex:4">3-18 · VAD, timers against meaning, barge-in</span>
+      <span class="a3" style="flex:5">18-40 · Build-along: tune Callwell's end-of-turn settings</span>
+      <span class="a4" style="flex:1">40-45 · Q&amp;A</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="section" id="intro">
+    <div class="section-kicker">
+      <span class="klabel">Part 0</span>
+      <h2>Where we start</h2>
+    </div>
+    <p class="lede">The running case is still the constructed Callwell example: an invented clinic group with sites at Riverside, Northgate and Harbour, and one booking line with an agent on it. In session 2 the bench showed that the end-of-turn wait is the largest stage at defaults, and that cutting it from 500 ms to 200 ms saves 125 ms while doubling the false cut-ins. Tonight we open that wait up. What is actually listening, what does it decide, and is there anything smarter than a stopwatch? Every setting tonight is one you can change in the framework you already use.</p>
+
+    <div class="legend">
+      <span class="pill">🎫 Clear all three quiz questions to stamp your passport</span>
+      <span class="pill">Live = presented in the 45 minutes</span>
+      <span class="pill">Self-study = the full depth, after class</span>
+      <span class="pill">★ Build-along = tune it yourself</span>
+    </div>
+
+    <div class="callout win">
+      <p><strong>★ What you walk out with tonight.</strong> A clear picture of what a voice activity detector does with a mid-sentence pause; the measured reason no silence threshold can separate a pause from a finished turn; a choice of turn detector and eagerness for each moment of your call; an interruption policy with truncation, so your agent never remembers saying something the caller did not hear; and the two numbers you will measure in session 5.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-1">
+    <div class="section-kicker">
+      <span class="klabel">Part 1 · covers voice activity detection</span>
+      <h2>Hearing speech: voice activity detection</h2>
+      <span class="tag concept">5 min live</span>
+    </div>
+    <p class="lede">A voice activity detector (VAD) answers one narrow question, over and over on short frames of audio: is someone speaking in this frame? On top of that yes or no it runs a small state machine. Enough speech in a row and it switches to "speaking"; enough silence in a row and it switches back and fires "speech stopped". It does not know what was said. It does not know whether the sentence is finished. It only knows how long the quiet has lasted.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 330" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="An audio energy strip for the constructed caller line: my date of birth is the fourteenth of, a thinking pause, then March. Below it the VAD states: quiet, then speaking once speech has run a short time, with 300 ms of audio before speech kept as prefix padding; then the silence timer counts 500 ms through the thinking pause and fires speech stopped, drawn in coral, and the agent starts replying just before the caller says March. The reply is a cut-in.">
+        <defs>
+          <filter id="v3aSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="53" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="v3aHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#0B8470" stroke-width="1" opacity=".5"/></pattern>
+          <marker id="v3aAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#10231F" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .v3aH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v3aL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v3aS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v3aB { font: 800 11px Inter, sans-serif; fill: #8F2C1C; }
+          .v3aA { font: 700 11px Inter, sans-serif; fill: #064E42; }
+          .v3aN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v3aH" x="30" y="24">WHAT A VAD DOES WITH A THINKING PAUSE (CONSTRUCTED CALLWELL MOMENT)</text>
+
+        <g filter="url(#v3aSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M40 100 L140 100" stroke="#C3D5D0"/>
+          <path d="M140 100 l10 -16 l10 30 l10 -24 l10 20 l10 -28 l10 32 l10 -18 l10 12 l10 -22 l10 26 l10 -14 l10 18 l10 -26 l10 22 l10 -12 l10 16 l10 -24 l10 28 l10 -20 l10 14 l10 -18 l10 24 l10 -16 l10 20 l10 -26 l10 18 l10 -10 l10 14 l10 -22 l10 26 l10 -18 l10 12 l10 -8 l10 10 l10 -4" stroke="#0B8470"/>
+          <path d="M500 100 L650 100" stroke="#C3D5D0"/>
+          <path d="M650 100 l10 -20 l10 28 l10 -24 l10 26 l10 -18 l10 14 l10 -6" stroke="#0B8470"/>
+          <path d="M720 100 L840 100" stroke="#C3D5D0"/>
+          <path d="M68 132 L140 132" stroke-dasharray="5 4"/>
+          <path d="M68 126 L68 138 M140 126 L140 138"/>
+          <path d="M188 120 L188 140"/>
+          <path d="M620 72 L620 140" stroke="#C2412D" stroke-dasharray="5 4"/>
+          <rect x="40" y="194" width="98" height="34" rx="6" transform="rotate(-0.6 89 211)" fill="#FFFFFF"/>
+          <rect x="142" y="194" width="356" height="34" rx="6" transform="rotate(0.3 320 211)" fill="#E8F6F2"/>
+          <rect x="502" y="194" width="114" height="34" rx="6" transform="rotate(-0.5 559 211)" fill="url(#v3aHc)"/>
+          <rect x="620" y="194" width="220" height="34" rx="6" transform="rotate(0.4 730 211)" fill="#FDEDE9" stroke="#C2412D"/>
+          <path d="M800 46 q5 -9 10 0 q5 9 10 0 q5 -9 10 0" stroke="#F07A63"/>
+        </g>
+
+        <text class="v3aL" x="320" y="58" text-anchor="middle">"my date of birth is the fourteenth of ..."</text>
+        <text class="v3aS" x="560" y="58" text-anchor="middle">thinking</text>
+        <text class="v3aL" x="690" y="58" text-anchor="middle">"March"</text>
+        <text class="v3aS" x="104" y="158" text-anchor="middle">prefix padding 300 ms kept</text>
+        <text class="v3aA" x="196" y="158">speech confirmed (start_secs)</text>
+        <text class="v3aB" x="628" y="158">speech_stopped fires on the pause</text>
+        <rect x="514" y="200" width="90" height="22" rx="4" fill="#FFFFFF"/>
+        <text class="v3aL" x="89" y="216" text-anchor="middle">quiet</text>
+        <text class="v3aL" x="320" y="216" text-anchor="middle">speaking</text>
+        <text class="v3aS" x="559" y="215" text-anchor="middle">silence 500 ms</text>
+        <text class="v3aB" x="730" y="216" text-anchor="middle">agent starts replying</text>
+        <text class="v3aA" x="30" y="186">VAD STATE</text>
+        <text class="v3aS" x="559" y="248" text-anchor="middle">timer counts the pause</text>
+        <text class="v3aB" x="742" y="248" text-anchor="middle">"March" arrives: a cut-in</text>
+
+        <text class="v3aN" x="30" y="290">Timer values: OpenAI server_vad defaults (silence_duration_ms 500, prefix_padding_ms 300), read 2026-11-08.</text>
+        <text class="v3aN" x="30" y="310">Pipecat's Silero VAD uses start_secs 0.2 and stop_secs 0.2. The shape is the same; only the clock differs.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - the VAD heard the pause correctly; it simply has no way to know the caller was looking for a month, so the timer fires and the agent cuts in</figcaption>
+    </figure>
+
+    <details class="card" open>
+      <summary><span class="mode live">Live</span>What a VAD hears, and what it does not<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p><strong>What it hears.</strong> Energy and voice-like sound, frame by frame, scored against a threshold. OpenAI's Realtime API reference (read 2026-11-08) gives the <code>server_vad</code> defaults: <code>threshold</code> "defaults to 0.5" on a 0 to 1 scale, <code>prefix_padding_ms</code> "Defaults to 300ms" (audio kept from just before speech was detected, so the first syllable is not clipped), and <code>silence_duration_ms</code> "Defaults to 500ms", the quiet it needs before it fires speech stopped. Pipecat's Silero VAD (read 2026-11-08) has the same shape with different numbers: <code>confidence</code> 0.7, <code>start_secs</code> 0.2 (speech must run that long before the state flips to speaking), <code>stop_secs</code> 0.2 (silence before it flips back to quiet), <code>min_volume</code> 0.6.</p>
+        <p><strong>What it does not hear.</strong> Meaning. "The fourteenth of" and "that's all, thanks" followed by the same silence look identical to a VAD. A cough over a quiet line can trip it; a soft speaker on a noisy phone can fall under the threshold. Raising the threshold cuts false starts from background noise and misses quiet callers; lowering it does the reverse. These are vendor defaults dated 2026-11-08: re-verify before you rely on them.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>Two stop_secs that mean different things<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Pipecat has two settings called <code>stop_secs</code>, and mixing them up is an easy way to break a build. On the Silero VAD, <code>stop_secs</code> is 0.2 s: "Time in seconds of silence required before transitioning back to QUIET state". On Smart Turn, Pipecat's turn model, <code>stop_secs</code> is 3.0 s: the silence after which the turn ends anyway, even if the model said the caller was not finished ("the turn is automatically marked as complete").</p>
+        <p>They work together. The VAD flips to quiet quickly, after 0.2 s, which gives the turn model an early look at the words. The turn model decides; the 3.0 s fallback stops a caller who drifts off from leaving the line open forever. Pipecat's own docs recommend keeping the VAD at 0.2 s when Smart Turn is on: "We recommend 0.2 seconds, which is the default value."</p>
+        <p>One more trap from a neighbouring layer: Deepgram's endpointing "is enabled by default and set to 10 milliseconds". That finalises a transcript (it sets <code>speech_final</code> to true); it is not a decision that the caller's turn is over. Treat a transcript endpoint and a turn decision as two different signals.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>OpenAI states the scope in one line.</strong> The Realtime VAD guide (read 2026-11-08) says <code>create_response</code> and <code>interrupt_response</code> "are only used in speech-to-speech conversations", and that "In transcription sessions, VAD only controls how audio is chunked." The same detector either chops audio into pieces for a transcriber or decides when the model speaks, depending on the session. Know which job yours is doing before you tune it.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-2">
+    <div class="section-kicker">
+      <span class="klabel">Part 2 · covers end-of-turn detection</span>
+      <h2>Is the turn over? Timers against meaning</h2>
+      <span class="tag concept">6 min live</span>
+    </div>
+    <p class="lede">The VAD says the caller went quiet. The end-of-turn decision says whether they have finished. The simplest version is a timer: if the silence lasts T milliseconds, the turn is over. The trouble is in the data. In real conversation, a pause inside one person's turn and a gap before the other person speaks have almost the same length, so any T that catches the gaps also fires on the pauses. The smarter version reads the words, and waits longer when the sentence is plainly unfinished.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 370" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Same silence, two deciders. Top: a timer hears the caller stop after the fourteenth of, counts 500 ms and fires regardless of what was said, drawn in coral. Bottom: a model that reads the words. For the fourteenth of it says incomplete and keeps waiting, but never past a maximum timeout of 8, 4 or 2 seconds for low, medium or high eagerness. For that's all, thanks it says complete and replies without waiting out a fixed timer.">
+        <defs>
+          <filter id="v3bSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="67" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="v3bHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#0B8470" stroke-width="1" opacity=".5"/></pattern>
+          <marker id="v3bAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#10231F" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .v3bH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v3bL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v3bS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v3bB { font: 800 11px Inter, sans-serif; fill: #8F2C1C; }
+          .v3bA { font: 700 11px Inter, sans-serif; fill: #064E42; }
+          .v3bN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v3bH" x="30" y="24">SAME SILENCE, TWO DECIDERS</text>
+        <text class="v3bA" x="30" y="56">A TIMER: COUNTS THE QUIET</text>
+        <text class="v3bA" x="30" y="190">A MODEL THAT READS THE WORDS</text>
+
+        <g filter="url(#v3bSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="40" y="70" width="210" height="40" rx="8" transform="rotate(-0.8 145 90)" fill="#FFFFFF"/>
+          <path d="M254 90 L440 90" stroke-dasharray="4 6"/>
+          <path d="M290 84 L290 96 M330 84 L330 96 M370 84 L370 96 M410 84 L410 96"/>
+          <rect x="444" y="76" width="16" height="28" rx="3" transform="rotate(2 452 90)" fill="#FDEDE9" stroke="#C2412D"/>
+          <path d="M40 140 q6 -10 12 0 q6 10 12 0 q6 -10 12 0" stroke="#F07A63"/>
+          <rect x="40" y="204" width="210" height="40" rx="8" transform="rotate(0.6 145 224)" fill="#FFFFFF"/>
+          <path d="M254 224 L280 224" marker-end="url(#v3bAr)"/>
+          <rect x="286" y="204" width="200" height="40" rx="8" transform="rotate(-0.5 386 224)" fill="url(#v3bHc)"/>
+          <rect x="40" y="280" width="210" height="40" rx="8" transform="rotate(-0.6 145 300)" fill="#FFFFFF"/>
+          <path d="M254 300 L280 300" marker-end="url(#v3bAr)"/>
+          <rect x="286" y="280" width="200" height="40" rx="8" transform="rotate(0.7 386 300)" fill="#E8F6F2"/>
+        </g>
+
+        <text class="v3bL" x="145" y="94" text-anchor="middle">"... the fourteenth of"</text>
+        <text class="v3bS" x="350" y="76" text-anchor="middle">100 ms ticks</text>
+        <text class="v3bB" x="472" y="94">fires at 500 ms, whatever was said</text>
+        <text class="v3bS" x="92" y="144">On "that's all, thanks" the same 500 ms is right, but only by luck of the timing.</text>
+
+        <text class="v3bL" x="145" y="228" text-anchor="middle">"... the fourteenth of"</text>
+        <rect x="300" y="214" width="172" height="20" rx="4" fill="#FFFFFF"/>
+        <text class="v3bL" x="386" y="228" text-anchor="middle">incomplete: keep waiting</text>
+        <text class="v3bS" x="506" y="220">waits, but never past a max timeout:</text>
+        <text class="v3bA" x="506" y="238">low 8 s · medium 4 s · high 2 s</text>
+        <text class="v3bL" x="145" y="304" text-anchor="middle">"... that's all, thanks"</text>
+        <text class="v3bL" x="386" y="304" text-anchor="middle">complete: reply now</text>
+        <text class="v3bS" x="506" y="304">no fixed timer to wait out</text>
+
+        <text class="v3bN" x="30" y="352">OpenAI semantic_vad eagerness max timeouts, API reference, read 2026-11-08; auto = medium. Lines constructed.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - a timer treats every silence the same; a turn model waits on "the fourteenth of", answers on "that's all, thanks", and still has a ceiling so nobody waits forever</figcaption>
+    </figure>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Why a timer cannot win: pauses and gaps look alike<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Heldner and Edlund (2010, Journal of Phonetics 38) measured pauses (silence inside one speaker's turn), gaps (silence before the other speaker starts) and overlaps in three corpora. On the HCRC Map Task, a 500 ms threshold catches 47.5% of gaps and 56.0% of pauses: the timer fires on more of the silences where the speaker was not finished than on the ones where they were. Their verdict: "turn-taking is generally less precise than is often claimed."</p>
+        <p>We measured the same corpus ourselves: 24 HCRC Map Task dialogues, two people who could not see each other (the nearest open analogue of a phone call, but not phone calls). The median gap is 335 ms and the median pause is 323 ms, twelve milliseconds apart. At 500 ms, 32.6% of pauses and 35.4% of gaps are that long, which works out to 27.2 false cut-ins per 100 speaker changes. Our levels are lower than Heldner and Edlund's because we segment by timed words where they used their own speech activity detection; the shape is the same in both. Teach both numbers, and the reason they differ.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>What semantic detection buys, and what we cannot measure here<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p><strong>OpenAI <code>semantic_vad</code>.</strong> Instead of a silence length you set <code>eagerness</code>: "<code>low</code> will let the user take their time to speak", "<code>high</code> will chunk the audio as soon as possible". The API reference gives the ceilings: "<code>low</code>, <code>medium</code>, and <code>high</code> have max timeouts of 8s, 4s, and 2s respectively", and "<code>auto</code> is the default and is equivalent to <code>medium</code>".</p>
+        <p><strong>LiveKit Agents</strong> documents five turn detection modes: its turn detector model (the default), the realtime model's own detection, VAD only, STT endpointing, and manual. Endpointing is fixed by default, with a minimum and maximum delay; the JS reference gives <code>minDelay</code> 500 ms and <code>maxDelay</code> 3,000 ms (read at source), and the Python defaults of 0.5 s and 3.0 s are reported from a code snippet, not read at source. <strong>Pipecat</strong> makes Smart Turn v3 its default user turn stop strategy: it runs locally on ONNX, supports 23 languages, and Pipecat reports inference "under 100ms" on low-cost cloud instances (vendor-reported).</p>
+        <p><strong>The honest limit.</strong> The widget below measures timers only. Testing a semantic detector needs the words and the model, not just silence lengths, and no vendor publishes a false cut-in rate for its turn model on open data. What semantic detection should buy you is fewer cut-ins on unfinished sentences and faster replies on finished ones; on your own calls, that is a claim to measure in session 5, not to assume. All names and defaults dated 2026-11-08: re-verify before you rely on them.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>Which mode for which moment<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <table class="clean">
+          <thead><tr><th>Moment</th><th>What the caller does</th><th>Reasonable starting point</th></tr></thead>
+          <tbody>
+            <tr><td>Open question ("How can I help?")</td><td>Long, unplanned, full of pauses</td><td>Semantic detection, default eagerness</td></tr>
+            <tr><td>Recall (date of birth, an address)</td><td>Pieces with long thinking pauses</td><td>Semantic, low eagerness; patient ceiling</td></tr>
+            <tr><td>Choice from a short list</td><td>One or two words</td><td>Semantic, high eagerness; answer fast</td></tr>
+            <tr><td>Yes or no confirmation</td><td>One word, then done</td><td>A plain silence timer is enough</td></tr>
+          </tbody>
+        </table>
+        <p>This is design guidance for a constructed case, not a measured ranking. The point is that one global setting is a compromise across moments that want opposite things. OpenAI lets you change <code>turn_detection</code> mid-session with <code>session.update</code>, so the agent can switch before it asks each question.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>Heldner and Edlund (2010) checked the folk number.</strong> Across three corpora, including the Swedish Map Task and the HCRC Map Task, gaps cluster around 200 ms, overlaps make up about 40% of between-speaker intervals, and 70 to 82% of intervals are under 500 ms. A 500 ms threshold caught 51.1% of gaps and 59.6% of pauses in the Swedish Map Task, and 47.5% and 56.0% in HCRC. There is no primary source for "500 ms is the magic number"; there is one showing that at 500 ms a timer cannot tell the two apart.</p>
+    </div>
+
+    <p>Now drag it yourself. <strong>Read it in this order:</strong> the threshold, then false cut-ins, then the two shares (pauses the timer fires on, real gaps still running), then the wait it adds to every reply, then the two curves lying almost on top of each other.</p>
+
+    <div id="vox-eot" data-t="500"></div>
+  </section>
+
+  <section class="section" id="part-3">
+    <div class="section-kicker">
+      <span class="klabel">Part 3 · covers interruptions</span>
+      <h2>Barge-in, truncation and backchannels</h2>
+      <span class="tag concept">5 min live</span>
+    </div>
+    <p class="lede">The other half of turn-taking runs the opposite way: the agent is talking and the caller starts. That is barge-in, and on a phone line it is normal, not rude: people correct, agree, and get ahead of a list. Stopping the audio is the easy part. The part builders miss is the model's memory. Unless you tell it otherwise, the model believes it said its whole sentence, including the half the caller never heard.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A timeline. The agent is saying I have Tuesday at nine or Thursday at two. The caller barges in at or, saying Tuesday works. Three steps follow: playback stops, the response is cancelled with response.done status cancelled, and the item is truncated with audio_end_ms. Thursday at two is struck through in coral: it was never heard and is cut from the context, so the model now knows only that I have Tuesday at nine was heard.">
+        <defs>
+          <filter id="v3cSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="79" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="v3cHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#0B8470" stroke-width="1" opacity=".5"/></pattern>
+          <marker id="v3cAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#10231F" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .v3cH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v3cL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v3cS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v3cB { font: 800 11px Inter, sans-serif; fill: #8F2C1C; }
+          .v3cA { font: 700 11px Inter, sans-serif; fill: #064E42; }
+          .v3cN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v3cH" x="30" y="24">BARGE-IN: STOP THE AUDIO, THEN FIX THE MEMORY</text>
+        <text class="v3cA" x="30" y="92">AGENT</text>
+        <text class="v3cA" x="30" y="154">CALLER</text>
+
+        <g filter="url(#v3cSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="100" y="70" width="322" height="34" rx="6" transform="rotate(-0.4 261 87)" fill="#E8F6F2"/>
+          <rect x="426" y="70" width="40" height="34" rx="6" transform="rotate(1 446 87)" fill="#E8F6F2"/>
+          <rect x="470" y="70" width="220" height="34" rx="6" transform="rotate(0.5 580 87)" fill="url(#v3cHc)"/>
+          <path d="M448 110 L448 168" stroke-dasharray="4 4"/>
+          <path d="M456 150 q6 -12 12 0 q6 12 12 0 q6 -12 12 0 q6 12 12 0 q6 -12 12 0 q6 12 12 0 q6 -12 12 0 q6 12 12 0" stroke="#F07A63"/>
+          <rect x="40" y="208" width="256" height="48" rx="8" transform="rotate(-0.8 168 232)" fill="#FFFFFF"/>
+          <path d="M300 232 L318 232" marker-end="url(#v3cAr)"/>
+          <rect x="324" y="208" width="256" height="48" rx="8" transform="rotate(0.6 452 232)" fill="#FFFFFF"/>
+          <path d="M584 232 L602 232" marker-end="url(#v3cAr)"/>
+          <rect x="608" y="208" width="232" height="48" rx="8" transform="rotate(-0.6 724 232)" fill="#FDEDE9" stroke="#C2412D"/>
+        </g>
+        <path data-strike="1" d="M478 88 L684 86" fill="none" stroke="#C2412D" stroke-width="2.4" stroke-linecap="round"/>
+
+        <text class="v3cL" x="261" y="92" text-anchor="middle">"I have Tuesday at nine"</text>
+        <text class="v3cL" x="446" y="92" text-anchor="middle">or</text>
+        <text class="v3cL" x="580" y="92" text-anchor="middle">"Thursday at two"</text>
+        <text class="v3cA" x="261" y="124" text-anchor="middle">played: the caller heard this</text>
+        <text class="v3cB" x="580" y="124" text-anchor="middle">never heard: cut from the context</text>
+        <text class="v3cL" x="570" y="154">"Tuesday works"</text>
+        <text class="v3cS" x="448" y="186" text-anchor="middle">barge-in at "or"</text>
+
+        <text class="v3cL" x="56" y="230">1 · playback stops</text>
+        <text class="v3cS" x="56" y="246">the caller's speech is detected</text>
+        <text class="v3cL" x="340" y="230">2 · response cancelled</text>
+        <text class="v3cS" x="340" y="246">response.done, status cancelled</text>
+        <text class="v3cB" x="624" y="230">3 · truncate the item</text>
+        <text class="v3cS" x="624" y="246">item.truncate with audio_end_ms</text>
+
+        <text class="v3cA" x="30" y="290">Context after truncation: the model knows only that "I have Tuesday at nine" was heard.</text>
+        <text class="v3cN" x="30" y="318">Constructed Callwell turn. Event names from OpenAI's Realtime docs, read 2026-11-08.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - stopping the audio is step one; truncation is what keeps the model from believing it offered a Thursday slot the caller never heard</figcaption>
+    </figure>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Why truncation matters<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>In OpenAI's Realtime API, <code>interrupt_response</code> and <code>create_response</code> both default to true, and both apply only in speech-to-speech conversations. When the caller barges in, "the server cancels it and sends <code>response.done</code> with <code>response.status</code> set to <code>cancelled</code>". The audio stops. But the model generated the whole sentence, and it is sitting in the conversation as if it had been said.</p>
+        <p><code>conversation.item.truncate</code> fixes that. You send the item, the audio content index, and "that played duration as <code>audio_end_ms</code>", and the server removes "the unplayed portion of the model's last response from the conversation", including its transcript. At Callwell (constructed) that is the difference between the next turn saying "Great, Tuesday at nine" and the model later asking "So was that Thursday at two?" about an offer the caller never heard.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Backchannels are not interruptions<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Callers say "mm-hmm", "yeah", "right" while the agent talks. That is a listener signalling "keep going", and an agent that stops dead on every "mm-hmm" is exhausting to call. LiveKit Agents (read 2026-11-08) gives you two filters on what counts as an interruption: <code>min_duration</code> and <code>min_words</code>, "Minimum number of words to be considered as an interruption." Set <code>min_words</code> to 2 (our constructed choice) and a lone "yeah" no longer stops the agent; "no, Thursday" still does.</p>
+        <p>LiveKit also resumes after a false interruption by default: "the agent resumes speaking from where it left off after a false interruption." The docs show a 2.0 s timeout as an example; that it is the default is reported only, not read at source. Pick your own thresholds and measure them.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>The WebSocket chore<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Whether truncation happens for you depends on the transport. OpenAI's conversations guide: over WebRTC and SIP, "The server will automatically truncate unplayed audio when there's a user interruption." Over a WebSocket, the server does not know how much of its audio your client actually played, because the buffering is on your side. So your client has to do two things the moment the caller's speech is detected: stop playback (flush whatever audio is queued), and send <code>conversation.item.truncate</code> with the milliseconds it really played.</p>
+        <p>Get the second number wrong in either direction and the context lies: too long and the model thinks the caller heard words they did not; too short and it repeats itself. Phone calls bridged through a WebSocket media stream (session 6) are exactly this case.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>Pipecat treats an interruption as a priority signal.</strong> Pipecat's pipeline guide (read 2026-11-08) lists an interruption frame for "Interruption control" and marks system frames, such as the one saying the user started speaking, as high priority: "interruptions do not discard them." The architecture says it plainly: when the caller speaks, everything queued to be said is disposable, and the fact that they spoke is not.</p>
+    </div>
+  </section>
+
+  <section class="section" id="demo-1">
+    <div class="section-kicker">
+      <span class="klabel">Build-along</span>
+      <h2>Tune Callwell's end-of-turn settings</h2>
+      <span class="tag demo">★ 22 min · everyone builds</span>
+    </div>
+    <p class="lede">Stop looking for one perfect threshold. Instead, give each moment of the call the detector it needs. Work through the steps with the widget open; if you have your own product, tune that, and keep the constructed Callwell example as the worked answer. Every config below is an example to adapt, not a recipe: re-verify field names against the current reference before you ship.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Callwell's call as four moments left to right, each with its own turn detection. Greeting: semantic_vad, auto equals medium, short answers at a normal pace. Date of birth, drawn in coral: semantic_vad, low eagerness with an 8 second maximum, because callers pause to recall. Slot choice: semantic_vad, high eagerness with a 2 second maximum, because answers are one or two words. Confirmation: server_vad with a 500 ms silence, yes or no then done. Underneath, an interruption policy for every moment: a barge-in needs two or more words, and the WebSocket client truncates.">
+        <defs>
+          <filter id="v3dSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="83" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="v3dHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#0B8470" stroke-width="1" opacity=".5"/></pattern>
+          <marker id="v3dAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#10231F" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .v3dH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v3dL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v3dS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v3dB { font: 800 11px Inter, sans-serif; fill: #8F2C1C; }
+          .v3dA { font: 700 11px Inter, sans-serif; fill: #064E42; }
+          .v3dN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v3dH" x="30" y="24">ONE CALL, FOUR MOMENTS, FOUR TURN SETTINGS (CONSTRUCTED CALLWELL EXAMPLE)</text>
+
+        <g filter="url(#v3dSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="40" y="48" width="180" height="140" rx="10" transform="rotate(-0.8 130 118)" fill="#FFFFFF"/>
+          <path d="M224 118 L244 118" marker-end="url(#v3dAr)"/>
+          <rect x="250" y="48" width="180" height="140" rx="10" transform="rotate(0.6 340 118)" fill="#FDEDE9" stroke="#C2412D"/>
+          <path d="M434 118 L454 118" marker-end="url(#v3dAr)"/>
+          <rect x="460" y="48" width="180" height="140" rx="10" transform="rotate(-0.5 550 118)" fill="#FFFFFF"/>
+          <path d="M644 118 L664 118" marker-end="url(#v3dAr)"/>
+          <rect x="670" y="48" width="170" height="140" rx="10" transform="rotate(0.7 755 118)" fill="#E8F6F2"/>
+          <rect x="40" y="208" width="800" height="46" rx="10" transform="rotate(-0.2 440 231)" fill="url(#v3dHc)"/>
+          <path d="M800 32 q5 -9 10 0 q5 9 10 0 q5 -9 10 0" stroke="#F07A63"/>
+        </g>
+
+        <text class="v3dH" x="54" y="72">1 · Greeting</text>
+        <text class="v3dL" x="54" y="96">semantic_vad</text>
+        <text class="v3dA" x="54" y="116">auto (= medium, 4 s)</text>
+        <text class="v3dS" x="54" y="140">open answer, normal pace</text>
+        <text class="v3dS" x="54" y="156">"I'd like to book..."</text>
+
+        <text class="v3dB" x="264" y="72">2 · Date of birth</text>
+        <text class="v3dL" x="264" y="96">semantic_vad</text>
+        <text class="v3dB" x="264" y="116">low (max 8 s)</text>
+        <text class="v3dS" x="264" y="140">callers pause to recall</text>
+        <text class="v3dS" x="264" y="156">"the fourteenth of..."</text>
+
+        <text class="v3dH" x="474" y="72">3 · Slot choice</text>
+        <text class="v3dL" x="474" y="96">semantic_vad</text>
+        <text class="v3dA" x="474" y="116">high (max 2 s)</text>
+        <text class="v3dS" x="474" y="140">one or two words</text>
+        <text class="v3dS" x="474" y="156">"Tuesday, please"</text>
+
+        <text class="v3dH" x="684" y="72">4 · Confirmation</text>
+        <text class="v3dL" x="684" y="96">server_vad</text>
+        <text class="v3dA" x="684" y="116">silence 500 ms</text>
+        <text class="v3dS" x="684" y="140">yes or no, then done</text>
+        <text class="v3dS" x="684" y="156">"Yes, that's right"</text>
+
+        <rect x="60" y="220" width="760" height="22" rx="4" fill="#FFFFFF"/>
+        <text class="v3dA" x="440" y="235" text-anchor="middle">every moment: a barge-in needs 2+ words; the WebSocket client stops playback and truncates</text>
+
+        <text class="v3dN" x="30" y="282">An example to adapt, not a measured optimum. Eagerness ceilings: OpenAI reference, read 2026-11-08.</text>
+        <text class="v3dN" x="30" y="302">The 2-word barge-in rule is constructed; LiveKit names the knob min_words. Re-verify field names.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - the patient setting goes where callers think; the fast one goes where they answer in a word; nothing else needs to change</figcaption>
+    </figure>
+
+    <div class="steps">
+      <div class="step">
+        <p><strong>Read the widget at 500 ms.</strong> Leave the slider where it opens, on the OpenAI and LiveKit default. Copy the four numbers into your notes. They are measured on real conversation, not on Callwell, so treat them as the shape of the problem rather than your call centre's rate.</p>
+        <div class="prompt-box good"><span class="label">★ Step 1 · the default, read off the widget</span>Threshold                      500 ms
+False cut-ins                  27.2 per 100 speaker changes
+Pauses the timer fires on      32.6%
+Real gaps still running at T   35.4%
+Wait added to every reply      500 ms   (human median gap here: 335 ms)
+Source: 24 HCRC Map Task dialogues, measured; not phone calls</div>
+      </div>
+      <div class="step">
+        <p><strong>Slide to 800, then to 300, and write the trade.</strong> Each 100 ms you add removes cut-ins and adds the same wait to every single reply. Each 100 ms you take away does the opposite. Session 2's bench showed what that wait does to the total.</p>
+        <div class="prompt-box good"><span class="label">★ Step 2 · the trade, both directions</span>800 ms: false cut-ins 14.2 per 100   wait +300 ms on every reply
+          (bench total 1,100 ms, over the 800 ms target)
+300 ms: false cut-ins 44.4 per 100   wait -200 ms
+          (bench total 675 ms; same total as at 200 ms,
+           where cut-ins reach 55.2)
+Verdict: no single timer serves Callwell. Move the decision
+from "how long was the quiet" to "what did the caller say".</div>
+      </div>
+      <div class="step">
+        <p><strong>Pick a detector per moment.</strong> List the moments from your session 1 map and give each one a detector and an eagerness, with one reason. This table is constructed; your moments will differ.</p>
+        <div class="prompt-box good"><span class="label">★ Step 3 · detector per moment (constructed)</span>Moment          Detector       Eagerness / timer   Why
+greeting        semantic_vad   auto (= medium)     open answer, normal pace
+date of birth   semantic_vad   low  (max 8 s)      callers pause to recall
+slot choice     semantic_vad   high (max 2 s)      one or two words
+confirmation    server_vad     silence 500 ms      yes or no, then done</div>
+      </div>
+      <div class="step">
+        <p><strong>Write the turn detection blocks.</strong> One <code>session.update</code> sent just before the date-of-birth question, and one with the documented <code>server_vad</code> defaults for confirmations. Field names are as in the API reference read 2026-11-08; where <code>turn_detection</code> sits inside <code>session</code> has moved between API versions, so check the current reference before you copy the nesting.</p>
+        <div class="prompt-box good"><span class="label">★ Step 4 · session.update, an example to adapt</span>// before "What is your date of birth?"
+{
+  "type": "session.update",
+  "session": {
+    "audio": { "input": { "turn_detection": {
+      "type": "semantic_vad",
+      "eagerness": "low",
+      "create_response": true,
+      "interrupt_response": true
+    } } }
+  }
+}
+
+// before "Shall I book that?" (server_vad, documented defaults)
+"turn_detection": {
+  "type": "server_vad",
+  "threshold": 0.5,
+  "prefix_padding_ms": 300,
+  "silence_duration_ms": 500,
+  "create_response": true,
+  "interrupt_response": true
+}</div>
+      </div>
+      <div class="step">
+        <p><strong>Write the interruption policy.</strong> What counts as a barge-in, what the agent does, and who truncates. Keep it to five lines a colleague can check.</p>
+        <div class="prompt-box good"><span class="label">★ Step 5 · interruption policy (constructed)</span>Counts as barge-in: 2 or more words (LiveKit: min_words);
+  a lone "mm-hmm" or "yeah" is a backchannel, keep talking
+On barge-in: stop playback at once, cancel the response
+Truncate: transport is a WebSocket, so OUR client sends
+  conversation.item.truncate with audio_end_ms = ms played
+Never: confirm a slot the caller did not hear in full</div>
+      </div>
+      <div class="step">
+        <p><strong>Write what you will measure in session 5.</strong> The widget's numbers came from two people reading maps. Your callers are not them, so these settings are hypotheses until your own calls say otherwise.</p>
+        <div class="prompt-box good"><span class="label">★ Step 6 · what session 5 will measure</span>False cut-ins: agent started while the caller was mid-turn,
+  per 100 turns, split by moment (date of birth first)
+Missed barge-ins: caller spoke 2+ words, agent kept talking
+Wasted waits: caller had finished, agent sat out the ceiling
+Context drift: model referred to words that were truncated
+Your numbers will differ from the widget's; that is the point.</div>
+      </div>
+    </div>
+
+    <div class="callout tip">
+      <p><strong>Switch before you ask.</strong> The turn setting that matters is the one live when the caller answers, so send the update just before the agent asks the question, not after the answer starts. And keep a ceiling on every patient setting: low eagerness still ends at 8 s, so a caller who wanders off is never left on a silent line.</p>
+    </div>
+  </section>
+
+  <section class="section" id="exercise">
+    <div class="section-kicker">
+      <span class="klabel">Homework</span>
+      <h2>Before session 4</h2>
+      <span class="tag exercise">30 min</span>
+    </div>
+    <ol>
+      <li><strong>Find your settings.</strong> Look up the turn detection and VAD settings your framework is actually running with today, not the ones you think you set. Write each one down with the date you read it.</li>
+      <li><strong>List your recall moments.</strong> Every question in your call where the caller has to remember something (a date, a number, a name). Those are your low-eagerness candidates.</li>
+      <li><strong>Test your truncation.</strong> Interrupt your own agent mid-list, then ask it "what did you just offer me?" If it names an option you did not hear, truncation is not working.</li>
+      <li><strong>Say "mm-hmm" at it.</strong> Three times, during three different replies. Count how often it stops. Decide whether that count is acceptable for your callers.</li>
+    </ol>
+  </section>
+
+  <section class="section" id="quiz">
+    <div class="section-kicker">
+      <span class="klabel">Check yourself</span>
+      <h2>Three questions</h2>
+    </div>
+    <p>Clear all three and session 3 gets stamped in your passport.</p>
+
+    <div class="quiz-q" data-answer="1">
+      <p class="qtext">1 · Why can a silence threshold alone not separate a caller who is thinking from a caller who has finished?</p>
+      <button class="qopt" type="button">A · Because phone audio is 8 kHz, so silence is hard to detect</button>
+      <button class="qopt" type="button">B · Because pauses inside a turn and gaps before a reply have nearly the same length distribution</button>
+      <button class="qopt" type="button">C · Because 500 ms is too short for any caller</button>
+      <button class="qopt" type="button">D · Because the VAD cannot detect silence at all</button>
+      <p class="qwhy">On 24 HCRC Map Task dialogues the median pause is 323 ms and the median gap 335 ms; at 500 ms the timer fires on 32.6% of pauses while 35.4% of gaps are still running. Heldner and Edlund (2010) found the same shape with different levels. The VAD hears the silence fine; it cannot know what the silence means.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="3">
+      <p class="qtext">2 · The caller barges in halfway through "I have Tuesday at nine or Thursday at two". What does sending conversation.item.truncate with audio_end_ms achieve?</p>
+      <button class="qopt" type="button">A · It stops the audio playing on the caller's phone</button>
+      <button class="qopt" type="button">B · It cancels the response so no more tokens are billed</button>
+      <button class="qopt" type="button">C · It tells the model to repeat the unheard part next turn</button>
+      <button class="qopt" type="button">D · It removes the unplayed part from the conversation, so the model's context matches what the caller actually heard</button>
+      <p class="qwhy">Stopping playback is the client's job, and cancelling is what barge-in already does (response.done with status cancelled). Truncation fixes the memory: OpenAI describes it as removing "the unplayed portion of the model's last response from the conversation". Over WebRTC and SIP it happens automatically; over a WebSocket your client sends it.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="0">
+      <p class="qtext">3 · You set OpenAI semantic_vad eagerness to "low" for the date-of-birth question. What does that mean?</p>
+      <button class="qopt" type="button">A · The model lets the caller take their time, waiting up to a maximum timeout of 8 seconds before the turn ends</button>
+      <button class="qopt" type="button">B · The silence threshold drops to 200 ms</button>
+      <button class="qopt" type="button">C · The agent waits forever until the caller says "that's all"</button>
+      <button class="qopt" type="button">D · Interruptions are turned off for that question</button>
+      <p class="qwhy">The API reference (read 2026-11-08): "low, medium, and high have max timeouts of 8s, 4s, and 2s respectively", and low "will let the user take their time to speak". It is patient, with a ceiling. Interruption is a separate setting, interrupt_response.</p>
+    </div>
+
+    <p class="quiz-score"></p>
+  </section>
+
+  <section class="section" id="official">
+    <div class="section-kicker">
+      <span class="klabel">Sources covered</span>
+      <h2>What this session teaches, and where it came from</h2>
+    </div>
+    <div class="covered">
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">OpenAI Realtime API reference, VAD guide and conversations guide (read 2026-11-08)</span><span class="note">server_vad defaults, semantic_vad eagerness ceilings, create_response and interrupt_response, cancelled responses, truncation and which transports do it for you</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">LiveKit Agents docs: turns, EndpointingOptions reference (read 2026-11-08)</span><span class="note">Five turn detection modes, fixed endpointing 500 / 3,000 ms (JS), min_duration and min_words, false-interruption resume; Python defaults and the 2.0 s timeout are reported only</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">Pipecat: Silero VAD, Smart Turn overview, pipeline guide (read 2026-11-08)</span><span class="note">VAD defaults, the two stop_secs, Smart Turn v3 as default stop strategy; speed and language claims are vendor-reported</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">Heldner, M. and Edlund, J. (2010). Pauses, gaps and overlaps in conversations. Journal of Phonetics 38</span><span class="note">Pauses and gaps look alike; the 500 ms threshold figures across three corpora, quoted</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">HCRC Map Task Corpus, 24 dialogues, measured in the widget (CC BY 4.0)</span><span class="note">Median gap and pause, shares at each threshold, false cut-ins per 100 speaker changes; two people who could not see each other, not phone calls</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">Deepgram endpointing docs (read 2026-11-08)</span><span class="note">The 10 ms default finalises a transcript; named here only to separate it from a turn decision</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">Callwell's moments, settings map and interruption policy</span><span class="note">Constructed for teaching; an example to adapt, not a measured optimum</span></div>
+    </div>
+    <p class="mono" style="margin-top:14px">Every fact on this page, and its verification tier, is recorded in the course's source map.</p>
+  </section>
+
+  <section class="cheat" id="cheatsheet">
+    <h3>Session 3 cheat sheet <span>· pin this</span></h3>
+    <div class="grid-2">
+      <div class="cheat-item"><b>A VAD hears sound, not meaning</b><span>OpenAI server_vad: threshold 0.5, prefix 300 ms, silence 500 ms. It cannot tell "the fourteenth of" from "thanks".</span></div>
+      <div class="cheat-item"><b>Timers cannot separate pauses from gaps</b><span>Median pause 323 ms, median gap 335 ms. At 500 ms: 27.2 false cut-ins per 100 speaker changes.</span></div>
+      <div class="cheat-item"><b>Semantic detection reads the words</b><span>semantic_vad eagerness low / medium / high: max 8 s / 4 s / 2 s; auto = medium.</span></div>
+      <div class="cheat-item"><b>Tune per moment</b><span>Patient where callers recall, fast where they answer in a word. Switch before you ask.</span></div>
+      <div class="cheat-item"><b>Truncate after barge-in</b><span>item.truncate with audio_end_ms keeps the context to what was heard. WebSocket clients do it themselves.</span></div>
+      <div class="cheat-item"><b>"Mm-hmm" is not a barge-in</b><span>Filter with min_words; measure false cut-ins and missed barge-ins in session 5.</span></div>
+    </div>
+  </section>
+
+  <div class="callout next">
+    <span class="nx-pill">Next session</span>
+    <p>Some Callwell callers will not say their referral reason at all: they will text a photo of the letter. Session 4 opens the photo path from your call-flow map: how a vision model reads a referral letter, why a value can fill a JSON schema perfectly and still be wrong, and how the agent confirms the field back to the caller by voice.</p>
+  </div>
+
+  <footer class="pagefoot">
+    <span>Session 3 of 6 · learn-voice-multimodal-agents-with-phoebe · by Phoebe Fu &nbsp;·&nbsp; 📚 <a href="https://phoebefu6.github.io/learn-with-phoebe/">Learn with Phoebe ↗</a></span>
+    <span><a href="02-the-latency-waterfall.html">← Prev: The latency waterfall</a> &nbsp;·&nbsp; <a href="04-images-in-the-loop.html">Next: Images in the loop →</a></span>
+  </footer>
+
+</main>
+
+<script src="../assets/app.js?v=1"></script>
+<script src="../assets/vox-sample.js?v=1"></script>
+<script src="../assets/vox-live.js?v=3"></script>
+</body>
+</html>

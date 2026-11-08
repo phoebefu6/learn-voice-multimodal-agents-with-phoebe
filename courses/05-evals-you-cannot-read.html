@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- social:start -->
+<meta name="description" content="Session 5 of 6. How to evaluate a voice agent when the conversation is audio: measure the call before the words (task success, slot accuracy, handoff, latency at p50 and p95, interruptions), compute word error rate by hand and see why it misleads, and judge what a transcript cannot show with simulated callers played through the real phone path.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Learn with Phoebe">
+<meta property="og:title" content="Evals for a conversation you cannot read - learn voice and multimodal agents with phoebe">
+<meta property="og:description" content="Session 5 of 6. Task success before word error rate, WER computed live on six constructed lines, and simulated callers through an 8 kHz phone codec.">
+<meta property="og:url" content="https://phoebefu6.github.io/learn-voice-multimodal-agents-with-phoebe/courses/05-evals-you-cannot-read.html">
+<meta property="og:image" content="https://phoebefu6.github.io/learn-voice-multimodal-agents-with-phoebe/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Evals for a conversation you cannot read - learn voice and multimodal agents with phoebe">
+<meta name="twitter:description" content="Session 5 of 6. Measure the call, not just the words: task success, WER computed live, and simulated callers.">
+<meta name="twitter:image" content="https://phoebefu6.github.io/learn-voice-multimodal-agents-with-phoebe/assets/og-cover.png">
+<!-- social:end -->
+<title>Session 5 · Evals for a conversation you cannot read - learn voice and multimodal agents with phoebe</title>
+<link rel="stylesheet" href="../assets/style.css?v=2">
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="wrap">
+    <span class="crumb"><a href="../index.html">learn-voice-multimodal-agents-with-phoebe</a> / Session 5 of 6</span>
+    <button class="btn" id="toggle-all" type="button">Expand all</button>
+    <button class="btn primary" id="zoom-toggle" type="button">Projector zoom: off</button>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="eyebrow">Learn Voice and Multimodal Agents with Phoebe · Session 5 of 6</div>
+    <h1>Evals for a conversation you <span class="accent">cannot read</span></h1>
+    <p class="sub">A text agent leaves you a transcript that is the conversation. A voice agent leaves you audio, and the transcript is only one model's guess at it. The caller who was talked over, the four seconds of dead air while a tool ran, the date of birth heard as the wrong day: none of it is visible in a tidy log. Tonight we decide what to measure on a call before we look at the words, compute word error rate by hand and watch it rank the wrong line as worst, and build a harness of simulated callers that goes through the same phone path real ones do. Then we write Callwell's eval sheet.</p>
+    <div class="chip-row">
+      <span class="chip level">🟠 Deeper</span>
+      <span class="chip audience">Builders who already run text evals</span>
+      <span class="chip audience">One live widget, one eval sheet</span>
+      <span class="chip time">45 min</span>
+    </div>
+    <div class="agenda">
+      <span class="a1" style="flex:1">0-3 · Welcome</span>
+      <span class="a2" style="flex:6">3-20 · Measure the call, WER computed, judging audio</span>
+      <span class="a3" style="flex:7">20-42 · Build-along: Callwell's eval sheet</span>
+      <span class="a4" style="flex:1">42-45 · Q&amp;A</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="section" id="intro">
+    <div class="section-kicker">
+      <span class="klabel">Part 0</span>
+      <h2>Where we start</h2>
+    </div>
+    <p class="lede">The running case is still the constructed Callwell example: an invented clinic group with sites at Riverside, Northgate and Harbour, and one booking line answered by an agent. By now it has a pipeline (session 1), a latency budget (session 2), turn detection tuned against measured pauses (session 3) and a photo path for referral letters (session 4). Before anyone lets it answer a real caller, someone will ask "how do we know it works?" Tonight's answer has three layers, and the bottom one, the one everybody reaches for first, is the least trustworthy on its own.</p>
+
+    <div class="legend">
+      <span class="pill">🎫 Clear all three quiz questions to stamp your passport</span>
+      <span class="pill">Live = presented in the 45 minutes</span>
+      <span class="pill">Self-study = the full depth, after class</span>
+      <span class="pill">★ Build-along = write it yourself</span>
+    </div>
+
+    <div class="callout win">
+      <p><strong>★ What you walk out with tonight.</strong> A three-layer list of what to measure on a voice call, with the call outcome on top; the ability to compute word error rate by hand and to explain why a 22.2% line can book correctly while an 8.3% line breaks the booking; a design for simulated callers that run through the real phone path; and a one-page eval sheet with 20 golden scenarios and the gates that block launch.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-1">
+    <div class="section-kicker">
+      <span class="klabel">Part 1 · covers what to measure on a voice call</span>
+      <h2>Measure the call before the words</h2>
+      <span class="tag concept">5 min live</span>
+    </div>
+    <p class="lede">Eval basics do not change on a phone line: you still need a golden set of scenarios with known right answers, and you may still use a model as a judge. Both are taught in <a href="https://phoebefu6.github.io/learn-ai-evals-with-phoebe/courses/b2-golden-set.html">learn-ai-evals, golden sets</a> and <a href="https://phoebefu6.github.io/learn-ai-evals-with-phoebe/courses/b5-llm-as-judge.html">LLM-as-judge</a>, and agent-level evals in <a href="https://phoebefu6.github.io/learn-ai-agents-with-phoebe/courses/b8-agent-evals.html">learn-ai-agents, agent evals</a>. Nothing here repeats them. What voice adds is a stack of measures at three heights, and the habit of reading it from the top down.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 352" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Three layers of voice measures drawn as a stack. Top layer, call outcome: task success, meaning the booking was made and made correctly, and appropriate handoff. Middle layer, turn measures: slot accuracy per critical field, false cut-ins, missed barge-ins, talk-over and latency per turn at p50 and p95. Bottom layer, stage measures: word error rate per line and per-stage timings such as time to first token and time to first byte. On the right, constructed pair c2 traced up the stack: word error rate 8.3 percent looks fine at the bottom, the date of birth slot is wrong in the middle, and the booking is broken at the top.">
+        <defs>
+          <filter id="v5aSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="51" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="v5aHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#0B8470" stroke-width="1" opacity=".5"/></pattern>
+          <marker id="v5aAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#10231F" stroke-width="1.6" stroke-linecap="round"/></marker>
+          <marker id="v5aAc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#C2412D" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .v5aH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v5aL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v5aS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v5aB { font: 800 11px Inter, sans-serif; fill: #8F2C1C; }
+          .v5aV { font: 800 18px Inter, sans-serif; fill: #064E42; }
+          .v5aA { font: 700 11px Inter, sans-serif; fill: #064E42; }
+          .v5aN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v5aH" x="30" y="24">THREE HEIGHTS OF MEASURE ON ONE CALL: READ FROM THE TOP DOWN</text>
+        <text class="v5aA" x="664" y="46">PAIR C2 (CONSTRUCTED)</text>
+
+        <g filter="url(#v5aSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="40" y="56" width="590" height="70" rx="10" transform="rotate(-0.4 335 91)" fill="#FFFFFF"/>
+          <rect x="40" y="144" width="590" height="70" rx="10" transform="rotate(0.3 335 179)" fill="#E8F6F2"/>
+          <rect x="40" y="232" width="590" height="70" rx="10" transform="rotate(-0.3 335 267)" fill="url(#v5aHc)"/>
+          <rect x="664" y="60" width="180" height="62" rx="10" transform="rotate(1.2 754 91)" fill="#FDEDE9" stroke="#C2412D"/>
+          <rect x="664" y="148" width="180" height="62" rx="10" transform="rotate(-1 754 179)" fill="#FFFFFF"/>
+          <rect x="664" y="236" width="180" height="62" rx="10" transform="rotate(1.4 754 267)" fill="#E8F6F2"/>
+          <path d="M754 232 L754 216" marker-end="url(#v5aAr)"/>
+          <path d="M754 144 L754 128" marker-end="url(#v5aAc)"/>
+          <path d="M800 26 q6 -10 12 0 q6 10 12 0 q6 -10 12 0 q6 10 12 0" stroke="#F07A63"/>
+        </g>
+
+        <rect x="54" y="66" width="560" height="50" rx="6" fill="#FFFFFF"/>
+        <text class="v5aA" x="60" y="80">CALL OUTCOME</text>
+        <text class="v5aL" x="60" y="97">task success: the booking was made, and made correctly</text>
+        <text class="v5aS" x="60" y="112">appropriate handoff: a person when the caller asked or needed one</text>
+
+        <rect x="54" y="154" width="560" height="50" rx="6" fill="#FFFFFF"/>
+        <text class="v5aA" x="60" y="168">TURN MEASURES</text>
+        <text class="v5aL" x="60" y="185">slot accuracy per critical field: clinician, date of birth, site, day</text>
+        <text class="v5aS" x="60" y="200">false cut-ins, missed barge-ins, talk-over; latency per turn at p50 and p95</text>
+
+        <rect x="54" y="242" width="560" height="50" rx="6" fill="#FFFFFF"/>
+        <text class="v5aA" x="60" y="256">STAGE MEASURES</text>
+        <text class="v5aL" x="60" y="273">word error rate per line; time to first token, time to first byte</text>
+        <text class="v5aS" x="60" y="288">per-stage timings from the trace (the session 2 waterfall)</text>
+
+        <text class="v5aB" x="680" y="86">booking broken</text>
+        <text class="v5aS" x="680" y="104">no slot for this caller</text>
+        <text class="v5aL" x="680" y="174">date of birth: wrong</text>
+        <text class="v5aS" x="680" y="192">fourteenth heard as fourth</text>
+        <text class="v5aV" x="680" y="264">WER 8.3%</text>
+        <text class="v5aS" x="680" y="284">looks fine on its own</text>
+
+        <text class="v5aN" x="30" y="328">A measure can pass at one height while the call fails above it. Gate on the top layer; debug with the bottom.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - the call outcome sits on top; a stage metric like WER can look fine while the booking it fed is wrong</figcaption>
+    </figure>
+
+    <details class="card" open>
+      <summary><span class="mode live">Live</span>Task success first<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p><strong>Task success</strong> is the one measure the clinic cares about: at the end of the call, was a booking made, and is every field of it correct? A call that books Doctor Lindqvist at Northgate when the caller asked for Doctor Okafor at Riverside is a failure, however fluent it sounded. Score it per scenario, from the booking system's record, not from the transcript.</p>
+        <p>Under it sits <strong>slot accuracy</strong>, scored per critical field: clinician, date of birth, site, day and time. A per-field score tells you where calls fail, which a single success rate cannot. Next to both sits <strong>appropriate handoff</strong>: when the caller asked for a person, sounded distressed or asked a medical question, did the agent transfer them, with a summary? A handoff that should have happened and did not is a failure even if a booking was made.</p>
+        <p>Only then do you look down the stack. The lower layers explain a failure; they do not define one.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Latency and interruption measures<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p><strong>Latency, per stage and per call.</strong> OpenAI's voice agents guide (read 2026-11-08) says to "measure how long callers wait for a useful spoken answer", to compare the median and the 95th percentile across similar calls, and to measure an acknowledgement such as "I'm checking" separately from the answer the caller actually needs. A build whose median is fine and whose 95th percentile is three times worse has a tool call or a cold start you have not found yet. LiveKit's metrics name the pieces you will log: end-to-end latency, time to first token from the model, time to first byte from the voice. Spans and per-span timing are taught in <a href="https://phoebefu6.github.io/learn-ai-observability-with-phoebe/courses/b4-cost-and-latency-per-span.html">learn-ai-observability, cost and latency per span</a>; the waterfall you built in session 2 is the shape those spans should take.</p>
+        <p><strong>Interruptions, three ways.</strong> From session 3: a <em>false cut-in</em> is the agent starting to talk while the caller was only pausing; a <em>missed barge-in</em> is the caller talking over the agent and the agent carrying on; <em>talk-over</em> is the total time both voices are on the line at once. All three are timing facts in the audio, and none of them appears in a transcript.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>What to log on every call<span class="mini">4 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>If you cannot replay a call, you cannot evaluate it. For each call, keep one record that links:</p>
+        <ul>
+          <li>the call id, scenario id (for test calls) and pipeline version: model, voice, turn settings;</li>
+          <li>both audio channels, caller and agent, kept separate so overlap can be measured;</li>
+          <li>the transcript per turn with timestamps, and the agent's reply text before it was spoken;</li>
+          <li>a trace with one span per stage per turn: end-of-turn wait, transcription, model first token, tool calls, voice first byte;</li>
+          <li>turn events: turn start, turn end, barge-in, truncation, and what the agent heard versus what it said;</li>
+          <li>the outcome from the booking system, the fields written, and whether a handoff happened and why.</li>
+        </ul>
+        <p>Recorded calls and transcripts are data that your privacy rules and contracts cover; session 6 points to where that is decided. Keep test calls and real calls apart from day one.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>OpenAI separates the "I'm checking" from the answer.</strong> In its voice agents guide (read 2026-11-08), OpenAI tells builders to measure acknowledgements separately from the useful answer. The reason is the Callwell tool call from session 2: a quick "one moment" can make the first syllable fast while the caller still waits for the slot. Log both, gate on the second.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-2">
+    <div class="section-kicker">
+      <span class="klabel">Part 2 · covers word error rate</span>
+      <h2>Word error rate, computed</h2>
+      <span class="tag concept">7 min live</span>
+    </div>
+    <p class="lede">Word error rate (WER) is the standard score for speech recognition. Line up what was said (the reference) against what the recogniser wrote (the hypothesis), word by word, with the fewest edits. Count substitutions S, deletions D and insertions I. Then WER = (S + D + I) / N, where N is the number of words in the reference. Because insertions are counted and N is not, WER can exceed 100%. Every error weighs the same (Wikipedia, reference tier; NIST's sclite scoring tool is reported to use equal weights by default). That last property is the one that matters on a booking line.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 330" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Constructed pair c1 aligned word by word. Reference, 12 words: hi I'd like to book an appointment with Doctor Okafor next Tuesday. Hypothesis, 13 words: the same with oak offer in place of Okafor. Eight opening words match, then doctor matches, Okafor is substituted by oak, offer is inserted against nothing, next and Tuesday match. Counted: S equals 1, D equals 0, I equals 1, N equals 12, WER equals 2 over 12, 16.7 percent. The booking is broken because the clinician field no longer names Doctor Okafor.">
+        <defs>
+          <filter id="v5bSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="53" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="v5bHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#0B8470" stroke-width="1" opacity=".5"/></pattern>
+        </defs>
+        <style>
+          .v5bH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v5bL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v5bS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v5bB { font: 800 11px Inter, sans-serif; fill: #8F2C1C; }
+          .v5bV { font: 800 18px Inter, sans-serif; fill: #064E42; }
+          .v5bA { font: 700 11px Inter, sans-serif; fill: #064E42; }
+          .v5bN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v5bH" x="30" y="24">PAIR C1, ALIGNED WORD BY WORD (CONSTRUCTED LINE, REAL ARITHMETIC)</text>
+
+        <g filter="url(#v5bSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="120" y="62" width="265" height="40" rx="8" transform="rotate(-0.4 252 82)" fill="url(#v5bHc)"/>
+          <rect x="398" y="62" width="70" height="40" rx="8" transform="rotate(1.5 433 82)" fill="#FFFFFF"/>
+          <rect x="480" y="62" width="90" height="40" rx="8" transform="rotate(-1.8 525 82)" fill="#FDEDE9" stroke="#C2412D"/>
+          <rect x="582" y="62" width="90" height="40" rx="8" transform="rotate(1 627 82)" stroke="#C2412D" stroke-dasharray="5 5"/>
+          <rect x="684" y="62" width="60" height="40" rx="8" transform="rotate(-1.2 714 82)" fill="#FFFFFF"/>
+          <rect x="756" y="62" width="90" height="40" rx="8" transform="rotate(1.6 801 82)" fill="#FFFFFF"/>
+
+          <path d="M252 106 L252 140"/>
+          <path d="M433 106 L433 140"/>
+          <path d="M525 106 L525 140" stroke="#C2412D"/>
+          <path d="M627 106 L627 140" stroke="#C2412D" stroke-dasharray="4 4"/>
+          <path d="M714 106 L714 140"/>
+          <path d="M801 106 L801 140"/>
+
+          <rect x="120" y="144" width="265" height="40" rx="8" transform="rotate(0.4 252 164)" fill="url(#v5bHc)"/>
+          <rect x="398" y="144" width="70" height="40" rx="8" transform="rotate(-1.4 433 164)" fill="#FFFFFF"/>
+          <rect x="480" y="144" width="90" height="40" rx="8" transform="rotate(1.8 525 164)" fill="#FDEDE9" stroke="#C2412D"/>
+          <rect x="582" y="144" width="90" height="40" rx="8" transform="rotate(-1.2 627 164)" fill="#FDEDE9" stroke="#C2412D"/>
+          <rect x="684" y="144" width="60" height="40" rx="8" transform="rotate(1.1 714 164)" fill="#FFFFFF"/>
+          <rect x="756" y="144" width="90" height="40" rx="8" transform="rotate(-1.5 801 164)" fill="#FFFFFF"/>
+
+          <rect x="40" y="232" width="380" height="54" rx="10" transform="rotate(-0.6 230 259)" fill="#E8F6F2"/>
+          <rect x="450" y="232" width="396" height="54" rx="10" transform="rotate(0.5 648 259)" fill="#FDEDE9" stroke="#C2412D"/>
+          <path d="M40 132 q6 -10 12 0 q6 10 12 0 q6 -10 12 0" stroke="#F07A63"/>
+        </g>
+
+        <text class="v5bA" x="40" y="80">SAID</text>
+        <text class="v5bS" x="40" y="95">12 words</text>
+        <text class="v5bA" x="40" y="162">HEARD</text>
+        <text class="v5bS" x="40" y="177">13 words</text>
+
+        <rect x="124" y="72" width="257" height="20" rx="4" fill="#FFFFFF"/>
+        <text class="v5bS" x="252" y="86" text-anchor="middle">hi i'd like to book an appointment with</text>
+        <text class="v5bL" x="433" y="87" text-anchor="middle">doctor</text>
+        <text class="v5bL" x="525" y="87" text-anchor="middle">okafor</text>
+        <text class="v5bS" x="627" y="86" text-anchor="middle">(nothing)</text>
+        <text class="v5bL" x="714" y="87" text-anchor="middle">next</text>
+        <text class="v5bL" x="801" y="87" text-anchor="middle">tuesday</text>
+
+        <rect x="124" y="154" width="257" height="20" rx="4" fill="#FFFFFF"/>
+        <text class="v5bS" x="252" y="168" text-anchor="middle">hi i'd like to book an appointment with</text>
+        <text class="v5bL" x="433" y="169" text-anchor="middle">doctor</text>
+        <text class="v5bL" x="525" y="169" text-anchor="middle">oak</text>
+        <text class="v5bL" x="627" y="169" text-anchor="middle">offer</text>
+        <text class="v5bL" x="714" y="169" text-anchor="middle">next</text>
+        <text class="v5bL" x="801" y="169" text-anchor="middle">tuesday</text>
+
+        <text class="v5bS" x="252" y="206" text-anchor="middle">8 matches</text>
+        <text class="v5bS" x="433" y="206" text-anchor="middle">match</text>
+        <text class="v5bB" x="525" y="206" text-anchor="middle">S = 1</text>
+        <text class="v5bB" x="627" y="206" text-anchor="middle">I = 1</text>
+        <text class="v5bS" x="714" y="206" text-anchor="middle">match</text>
+        <text class="v5bS" x="801" y="206" text-anchor="middle">match</text>
+
+        <text class="v5bV" x="60" y="266">S 1 · D 0 · I 1 · N 12</text>
+        <text class="v5bS" x="60" y="280">N counts the reference only</text>
+        <text class="v5bV" x="470" y="266">WER = 2 / 12 = 16.7%</text>
+        <text class="v5bB" x="470" y="280">booking broken: no Doctor "Oak Offer"</text>
+
+        <text class="v5bN" x="30" y="314">The alignment finds the fewest edits. Two errors in twelve words, and both sit on the one word the booking needs.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - one substitution and one insertion make 16.7%; the number is modest, the broken field is not</figcaption>
+    </figure>
+
+    <p>Now run it on all six constructed Callwell lines. The widget below aligns each pair live, using a stated normaliser, and says whether the booking survived.</p>
+
+    <div id="vox-wer"></div>
+
+    <div class="callout tip">
+      <p><strong>Read it in this order.</strong> Start with the overall line: 7 errors in 56 reference words, WER 12.5%, and bookings broken 3 of 6. A 12.5% recogniser sounds usable; half the bookings did not survive it. Then find the highest WER in the table: c3, "Riverside" written as "river side", 22.2%, and the booking is right, because "river side" still resolves to the Riverside site. Then c2: "fourteenth" heard as "fourth", only 8.3%, and the booking is broken, because a date of birth that is wrong by ten days is a different patient record. Then c6: the caller's "Um" dropped, also 8.3%, and harmless. Same score as c2, opposite consequence. Last, the try box: it opens at 16.7% on "fourteenth" against "fourth" in a six-word line. Type two of your own lines into it.</p>
+    </div>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>How alignment counts<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>The alignment is an edit distance over words (Levenshtein): find the smallest number of substitutions, deletions and insertions that turns the reference into the hypothesis. A <strong>substitution</strong> is a reference word replaced by a different word (okafor became oak). A <strong>deletion</strong> is a reference word with nothing against it (c4's final "Tuesday", c6's "Um"). An <strong>insertion</strong> is a hypothesis word with nothing against it (offer, side).</p>
+        <p>Ties happen: "riverside" against "river side" could be counted as substitute-then-insert or insert-then-substitute. The widget breaks ties the same way every time (prefer a match or substitution, then a deletion, then an insertion), so its numbers are repeatable. The total is the same either way; which word gets which label can differ between tools.</p>
+        <p>Because N counts only the reference, a recogniser that hallucinates a long sentence over a two-word answer can score well above 100%. That is not a bug in the formula; it is what the formula is for.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Why WER misleads on a booking line<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>WER weighs every word the same. A booking does not. On Callwell's six lines, the ranking by WER and the ranking by harm disagree: the worst-scoring line (c3, 22.2%) did no harm, and two of the three broken bookings sit at 8.3% (c2) and 16.7% (c1). c4, at 25.0%, broke the booking by dropping the one word that corrected the day.</p>
+        <p>So WER stays on the eval sheet as a <strong>diagnostic</strong>: when slot accuracy drops, WER on the failing lines tells you whether the recogniser is the cause. It does not go on as a launch gate. The gate is slot accuracy on the fields that matter and task success on the call.</p>
+        <p>Two more cautions. Phone audio reaches your server at 8 kHz (session 1), so any WER measured on clean, wideband audio is an upper bound on how well the same recogniser does on Callwell's line. And these six lines are constructed to show error types; they say nothing about any real recogniser's rate.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>Normalisation rules, and vendor numbers<span class="mini">4 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Before alignment, both lines are normalised. The widget lower-cases, keeps a-z, 0-9 and apostrophes, and turns everything else into a space. That is why c5, which differs only in punctuation, scores 0.0%. Change one rule and the number moves: strip apostrophes and "I'd" becomes "id"; write numbers as digits in one line and words in the other and "nineteen eighty two" against "1982" becomes three substitutions or worse; decide whether "um" counts and c6 changes. Write your normaliser down next to every WER you report.</p>
+        <p>This is why vendor WER figures are not comparable with each other: different test sets, different normalisers. learn-ai-media teaches that in full, with measured examples, in <a href="https://phoebefu6.github.io/learn-ai-media-with-phoebe/courses/05-how-it-fails-measured.html">how it fails, measured</a>; we do not repeat it.</p>
+        <p>One dated example of what a vendor number looks like. Deepgram's Nova-3 launch post (2025-02-12) reports a median streaming WER of 6.84% against 14.92% for an unnamed competitor, on Deepgram's own test set. It is vendor-reported, on audio that is not your callers', and the same post states the relative improvement as 54.2% in one place and 54.3% in another. Read as of 2026-11-08; re-verify before you rely on it, and measure on your own recorded lines either way.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>A vendor's headline WER is measured on the vendor's audio.</strong> Deepgram's Nova-3 post (2025-02-12) is explicit that its 6.84% median streaming WER comes from its own test set, and it names no competitor. That is normal practice, not a trick. It means the number you should trust for Callwell is the one you compute on your own phone-quality lines, with your normaliser printed beside it.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-3">
+    <div class="section-kicker">
+      <span class="klabel">Part 3 · covers audio against transcript judging, and simulated callers</span>
+      <h2>Judging what you cannot read</h2>
+      <span class="tag concept">5 min live</span>
+    </div>
+    <p class="lede">A model judge that reads transcripts is the cheapest way to grade hundreds of calls, and it is blind to exactly the things that make a voice agent feel broken. A judge that listens to audio hears more, but is newer and less tested. And to have calls to judge before launch, you need callers: simulated ones, played through the same phone path a real caller takes. No single primary source sets out a standard method for any of this; what follows is current practice, labelled as practice, with its limits drawn in.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 362" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The simulation harness as a loop. Top row left to right: a persona script, a synthetic voice, an 8 kHz phone codec, your agent running the real pipeline, and a recorded call. The recorded call feeds three checks: a transcript judge, audio checks for talk-over and dead air, and a slot checker against the booking system. All three feed a scorecard, which loops back to the persona script to fix, rerun and add personas. A coral dashed bracket over the persona script and synthetic voice marks the gap: real callers are noisier, slower and less patient than synthetic ones.">
+        <defs>
+          <filter id="v5cSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="57" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="v5cHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#0B8470" stroke-width="1" opacity=".5"/></pattern>
+          <marker id="v5cAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#10231F" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .v5cH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v5cL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v5cS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v5cB { font: 800 11px Inter, sans-serif; fill: #8F2C1C; }
+          .v5cA { font: 700 11px Inter, sans-serif; fill: #064E42; }
+          .v5cN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v5cH" x="30" y="22">THE SIMULATED-CALLER HARNESS: SAME PHONE PATH, THEN THREE KINDS OF CHECK</text>
+        <text class="v5cB" x="30" y="48">gap: real callers are noisier, slower and less patient</text>
+
+        <g filter="url(#v5cSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M32 64 L32 58 L330 58 L330 64" stroke="#C2412D" stroke-dasharray="6 5"/>
+          <rect x="30" y="72" width="140" height="54" rx="10" transform="rotate(-1 100 99)" fill="url(#v5cHc)"/>
+          <path d="M174 99 L188 99" marker-end="url(#v5cAr)"/>
+          <rect x="192" y="72" width="140" height="54" rx="10" transform="rotate(0.8 262 99)" fill="#FFFFFF"/>
+          <path d="M336 99 L350 99" marker-end="url(#v5cAr)"/>
+          <rect x="354" y="72" width="140" height="54" rx="10" transform="rotate(-0.6 424 99)" fill="#FFFFFF"/>
+          <path d="M498 99 L512 99" marker-end="url(#v5cAr)"/>
+          <rect x="516" y="72" width="140" height="54" rx="10" transform="rotate(0.7 586 99)" fill="#E8F6F2"/>
+          <path d="M660 99 L674 99" marker-end="url(#v5cAr)"/>
+          <rect x="678" y="72" width="164" height="54" rx="10" transform="rotate(-0.9 760 99)" fill="#FFFFFF"/>
+
+          <path d="M730 130 L470 168" marker-end="url(#v5cAr)"/>
+          <path d="M760 130 L640 168" marker-end="url(#v5cAr)"/>
+          <path d="M790 130 L790 168" marker-end="url(#v5cAr)"/>
+          <rect x="380" y="172" width="150" height="54" rx="10" transform="rotate(-1.2 455 199)" fill="#FFFFFF"/>
+          <rect x="550" y="172" width="150" height="54" rx="10" transform="rotate(0.9 625 199)" fill="#FFFFFF"/>
+          <rect x="720" y="172" width="130" height="54" rx="10" transform="rotate(-0.8 785 199)" fill="#FFFFFF"/>
+
+          <path d="M470 230 L580 268" marker-end="url(#v5cAr)"/>
+          <path d="M625 230 L620 268" marker-end="url(#v5cAr)"/>
+          <path d="M770 230 L668 268" marker-end="url(#v5cAr)"/>
+          <rect x="540" y="272" width="150" height="50" rx="10" transform="rotate(0.6 615 297)" fill="#E8F6F2"/>
+
+          <path d="M536 300 L112 300 Q80 300 80 270 L80 134" marker-end="url(#v5cAr)"/>
+          <path d="M226 150 q6 -10 12 0 q6 10 12 0 q6 -10 12 0 q6 10 12 0" stroke="#F07A63"/>
+        </g>
+
+        <text class="v5cL" x="100" y="96" text-anchor="middle">persona script</text>
+        <text class="v5cS" x="100" y="112" text-anchor="middle">pauser, interrupter</text>
+        <text class="v5cL" x="262" y="96" text-anchor="middle">synthetic voice</text>
+        <text class="v5cS" x="262" y="112" text-anchor="middle">TTS speaks the lines</text>
+        <text class="v5cL" x="424" y="96" text-anchor="middle">8 kHz phone codec</text>
+        <text class="v5cS" x="424" y="112" text-anchor="middle">mu-law, narrowband</text>
+        <text class="v5cL" x="586" y="96" text-anchor="middle">your agent</text>
+        <text class="v5cS" x="586" y="112" text-anchor="middle">the real pipeline</text>
+        <text class="v5cL" x="760" y="96" text-anchor="middle">recorded call</text>
+        <text class="v5cS" x="760" y="112" text-anchor="middle">two audio channels</text>
+
+        <text class="v5cL" x="455" y="196" text-anchor="middle">transcript judge</text>
+        <text class="v5cS" x="455" y="212" text-anchor="middle">words, intent, policy</text>
+        <text class="v5cL" x="625" y="196" text-anchor="middle">audio checks</text>
+        <text class="v5cS" x="625" y="212" text-anchor="middle">talk-over, dead air</text>
+        <text class="v5cL" x="785" y="196" text-anchor="middle">slot checker</text>
+        <text class="v5cS" x="785" y="212" text-anchor="middle">booking record</text>
+
+        <text class="v5cL" x="615" y="294" text-anchor="middle">scorecard</text>
+        <text class="v5cS" x="615" y="310" text-anchor="middle">per persona, per run</text>
+
+        <text class="v5cA" x="120" y="288">fix, rerun, add a persona</text>
+        <text class="v5cS" x="210" y="176">a voice, not a person</text>
+
+        <text class="v5cN" x="30" y="344">A simulated pass is necessary, not sufficient: synthetic callers are cleaner and more patient than real ones.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - the synthetic caller goes through the same codec and pipeline as a real one; the coral gap is what no simulation closes</figcaption>
+    </figure>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Transcript judge or audio judge<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>A <strong>transcript judge</strong> is a language model reading the call's text and grading it against a rubric: did the agent confirm the date, stay inside policy, offer a person when asked. It is cheap, repeatable and well understood. It cannot hear tone, so a reply read in a flat voice to an upset caller scores the same as a kind one. It cannot see talk-over, because two people speaking at once become two tidy lines. And it cannot see dead air, because four seconds of silence leave no text at all.</p>
+        <p>An <strong>audio judge</strong> listens to the recording and can, in principle, hear all three. In practice it is newer and less calibrated: there is no primary source we read that sets out how well audio judges agree with people, so treat their scores as a signal to check, not a verdict. The robust pattern today is to split the work: a transcript judge for content, plain timing code over the two audio channels for talk-over and dead air (these are measurements, not judgements), and a slot checker against the booking system for the outcome.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Building personas<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>A persona is a scripted caller with a goal, some facts and a behaviour. Start with the four that break voice agents most, each built from what sessions 2 and 3 taught you to fear:</p>
+        <ul>
+          <li><strong>The mid-sentence pauser:</strong> "My date of birth is the fourteenth of..." then a long pause, then "March". Tests the end-of-turn settings from session 3.</li>
+          <li><strong>The interrupter:</strong> talks over the slot offer with "no, not Thursday". Tests barge-in and truncation.</li>
+          <li><strong>The caller on a noisy line:</strong> the same script with background noise mixed in before the codec. Tests the recogniser where it is weakest.</li>
+          <li><strong>The one who asks for a person:</strong> "Can I just speak to someone?" on the second turn. Tests the handoff.</li>
+        </ul>
+        <p>The persona's lines are spoken by a synthetic voice, then pushed through an 8 kHz phone codec before they reach your agent, so the agent hears what it would hear on a real call. Skip the codec and you are testing a cleaner line than you will ship. Record both channels, and run each persona more than once: the agent's replies vary, so one pass proves little.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>Calibrating a judge, and the limits of simulation<span class="mini">4 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Any model judge, transcript or audio, needs calibrating against people before you trust it: have two people grade a sample of calls, measure how often the judge agrees with them and with each other, and fix the rubric where they disagree. The method is taught in <a href="https://phoebefu6.github.io/learn-ai-evals-with-phoebe/courses/b5-llm-as-judge.html">learn-ai-evals, LLM-as-judge</a>. For voice, add one step: have the people listen, not read, so the judge is calibrated against what callers hear.</p>
+        <p>Simulated callers have a hard limit, drawn as the coral gap in the figure. Synthetic voices are cleaner than real ones, scripted callers are more patient, and nobody writes a persona for the caller who puts the phone down to shout at a child. A simulated pass tells you the agent handles the cases you thought of. It does not tell you about the ones you did not. So a simulated pass is necessary, not sufficient: plan to review a sample of real calls after launch, with consent and data handling settled first (session 6).</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>LiveKit names the timings; nobody names the judge.</strong> LiveKit's documentation (read 2026-11-08) names the latency metrics a voice eval can log per turn: end-to-end latency, time to first token, time to first byte. We found no vendor or paper, read at source, that sets out a calibrated method for judging voice calls from audio. That gap is the honest state of the field on 2026-11-08: measure the timings, check the slots, and treat any audio judge as a new instrument that still needs calibrating.</p>
+    </div>
+  </section>
+
+  <section class="section" id="demo-1">
+    <div class="section-kicker">
+      <span class="klabel">Build-along</span>
+      <h2>Callwell's eval sheet</h2>
+      <span class="tag demo">★ 22 min · everyone builds</span>
+    </div>
+    <p class="lede">Write the sheet that decides whether Callwell's (constructed) agent may answer real callers. Use Callwell, or swap in your own product and keep Callwell as the worked answer. Every threshold below is constructed for teaching: your numbers will differ, and they should come from your own clinic, your own callers and your own risk appetite.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 366" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Callwell's scorecard as a hand-drawn table of five measures with constructed thresholds. Task success, booking made and every field correct, at least 18 of 20 scenarios, blocks launch, highlighted. Slot accuracy on clinician, date of birth, site and day, 100 percent per field. First-syllable latency from traces, p50 under 800 ms and p95 under 1,500 ms. Interruptions, false cut-ins, missed barge-ins and talk-over, at most 1 cut-in in 20 calls. Appropriate handoff, transferred when asked or medically needed, 3 of 3 cases. Under the table: word error rate is logged per line as a diagnostic, never a launch gate.">
+        <defs>
+          <filter id="v5dSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="59" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="v5dHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#0B8470" stroke-width="1" opacity=".5"/></pattern>
+        </defs>
+        <style>
+          .v5dH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v5dL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v5dS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v5dB { font: 800 11px Inter, sans-serif; fill: #8F2C1C; }
+          .v5dA { font: 700 11px Inter, sans-serif; fill: #064E42; }
+          .v5dN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v5dH" x="30" y="24">CALLWELL'S SCORECARD: FIVE MEASURES, FIVE GATES (CONSTRUCTED)</text>
+
+        <g filter="url(#v5dSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="30" y="40" width="820" height="266" rx="10" transform="rotate(-0.2 440 173)" fill="#FFFFFF"/>
+          <rect x="32" y="42" width="816" height="30" rx="6" fill="url(#v5dHc)"/>
+          <rect x="36" y="78" width="808" height="40" rx="6" transform="rotate(0.2 440 98)" fill="#FDEDE9" stroke="#C2412D"/>
+          <path d="M36 122 L844 122"/>
+          <path d="M36 168 L844 168"/>
+          <path d="M36 214 L844 214"/>
+          <path d="M36 260 L844 260"/>
+          <path d="M244 46 L244 302"/>
+          <path d="M584 46 L584 302"/>
+          <path d="M754 46 L754 302"/>
+          <path d="M790 22 q6 -10 12 0 q6 10 12 0 q6 -10 12 0" stroke="#F07A63"/>
+        </g>
+
+        <rect x="44" y="48" width="70" height="18" rx="4" fill="#FFFFFF"/>
+        <text class="v5dA" x="50" y="61">MEASURE</text>
+        <rect x="252" y="48" width="110" height="18" rx="4" fill="#FFFFFF"/>
+        <text class="v5dA" x="258" y="61">HOW IT IS SCORED</text>
+        <rect x="592" y="48" width="86" height="18" rx="4" fill="#FFFFFF"/>
+        <text class="v5dA" x="598" y="61">THRESHOLD</text>
+        <rect x="762" y="48" width="62" height="18" rx="4" fill="#FFFFFF"/>
+        <text class="v5dA" x="768" y="61">GATE</text>
+
+        <text class="v5dL" x="46" y="103">task success</text>
+        <text class="v5dS" x="254" y="102">booking made and every field correct</text>
+        <text class="v5dL" x="594" y="103">at least 18 of 20</text>
+        <text class="v5dB" x="764" y="102">blocks</text>
+
+        <text class="v5dL" x="46" y="143">slot accuracy</text>
+        <text class="v5dS" x="46" y="158">per critical field</text>
+        <text class="v5dS" x="254" y="149">clinician, date of birth, site, day: exact</text>
+        <text class="v5dL" x="594" y="150">100% per field</text>
+        <text class="v5dB" x="764" y="149">blocks</text>
+
+        <text class="v5dL" x="46" y="189">first-syllable</text>
+        <text class="v5dS" x="46" y="204">latency, per turn</text>
+        <text class="v5dS" x="254" y="195">caller's last word to first audio, traces</text>
+        <text class="v5dL" x="594" y="189">p50 under 800 ms</text>
+        <text class="v5dL" x="594" y="205">p95 under 1,500 ms</text>
+        <text class="v5dB" x="764" y="195">blocks</text>
+
+        <text class="v5dL" x="46" y="235">interruptions</text>
+        <text class="v5dS" x="46" y="250">from session 3</text>
+        <text class="v5dS" x="254" y="241">false cut-ins, missed barge-ins, talk-over</text>
+        <text class="v5dL" x="594" y="242">max 1 cut-in in 20</text>
+        <text class="v5dB" x="764" y="241">blocks</text>
+
+        <text class="v5dL" x="46" y="281">handoff</text>
+        <text class="v5dS" x="46" y="296">appropriate, warm</text>
+        <text class="v5dS" x="254" y="287">transferred when asked or medically needed</text>
+        <text class="v5dL" x="594" y="288">3 of 3 cases</text>
+        <text class="v5dB" x="764" y="287">blocks</text>
+
+        <text class="v5dA" x="30" y="330">WER: logged per line as a diagnostic, never a launch gate</text>
+        <text class="v5dN" x="30" y="352">Thresholds are constructed. Latency gates borrow Kramer 2025: 800 ms aim, 1,500 ms for a proof of concept.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - five gates, task success first; word error rate sits under the table as the tool you debug with</figcaption>
+    </figure>
+
+    <div class="steps">
+      <div class="step">
+        <p><strong>Write 20 golden scenarios as a table.</strong> One row per scenario: who calls, what they want, what the right outcome is. The mix below is constructed to cover Callwell's main paths and the side doors; weight yours by what your real line receives.</p>
+        <div class="prompt-box good"><span class="label">★ Step 1 · 20 golden scenarios (constructed)</span>id   type              caller wants                          right outcome
+G01  ordinary booking  Doctor Okafor, Riverside, next Tuesday booked, all fields correct
+...  (8 ordinary bookings, G01-G08: vary clinician, site, day)
+G09  reschedule        move Thursday to Tuesday, same doctor  old slot freed, new booked
+...  (4 reschedules, G09-G12: include one "no, not Thursday")
+G13  photo letter      book from a texted referral letter     referral reason read back
+...  (3 photo letters, G13-G15: one blurred, one rotated)
+G16  handoff           "Can I speak to someone?"              warm transfer, summary
+...  (3 handoff cases, G16-G18: one distressed, one medical question)
+G19  noisy line        ordinary booking, street noise         booked, or handoff after
+                                                              two failed reads
+G20  noisy line        reschedule, poor signal                same as above</div>
+      </div>
+      <div class="step">
+        <p><strong>Define task success and slot accuracy.</strong> In words a colleague could score without asking you. Decide which fields are critical, and score them from the booking record, never from the transcript.</p>
+        <div class="prompt-box good"><span class="label">★ Step 2 · the two top measures</span>Task success (per scenario):
+  PASS if the booking record matches the scenario's right outcome
+  on every critical field, OR the scenario expects a handoff and a
+  warm transfer happened with a summary. Anything else is FAIL.
+
+Slot accuracy (per field, across all scenarios that use it):
+  critical fields: clinician, date of birth, site, day, time
+  correct = booking record value == scenario value, exactly
+  "river side" resolving to Riverside counts as correct;
+  "fourth" for "fourteenth" does not</div>
+      </div>
+      <div class="step">
+        <p><strong>Compute WER in the try box on two of your own lines.</strong> Type a line you would say to your agent as the reference, and a plausible mishearing as the hypothesis. Write down S, D, I, N and the WER the widget prints, and whether the mishearing would break your booking. Your numbers will differ from anyone else's in the room.</p>
+        <div class="prompt-box good"><span class="label">★ Step 3 · two lines of your own</span>Line A  reference:  ______________________________
+        hypothesis: ______________________________
+        S __  D __  I __  N __   WER ____%   booking broken? yes / no
+Line B  reference:  ______________________________
+        hypothesis: ______________________________
+        S __  D __  I __  N __   WER ____%   booking broken? yes / no
+Lesson to write under them: which line had the higher WER,
+and was it the one that broke the booking?</div>
+      </div>
+      <div class="step">
+        <p><strong>Set the latency gates from session 2.</strong> Gate the first syllable at both p50 and p95, measured from traces on the golden scenarios, and log acknowledgements separately from the useful answer. Kwindla Hultman Kramer's 2025 guidance aims for 800 ms median and calls 1,500 ms acceptable for a proof of concept (practitioner, read 2026-11-08); the p95 gate below is a constructed choice built from those two figures.</p>
+        <div class="prompt-box good"><span class="label">★ Step 4 · latency gates (constructed thresholds)</span>Measure:  caller's last word -&gt; first audio of the agent, per turn
+Source:   traces, one span per stage (session 2 waterfall)
+Gate:     p50 under 800 ms AND p95 under 1,500 ms
+Separate: time to the useful answer on tool-call turns
+          (acknowledgement "one moment" logged on its own line)
+Re-verify the 800 / 1,500 figures before you rely on them;
+your own callers decide the real gate</div>
+      </div>
+      <div class="step">
+        <p><strong>Add the interruption measures from session 3.</strong> These come from the two audio channels and the turn events, not from text. Run the pauser and the interrupter personas several times each.</p>
+        <div class="prompt-box good"><span class="label">★ Step 5 · interruption measures</span>false cut-in    agent starts speaking while caller is mid-pause
+                (pauser persona; count per call)
+missed barge-in caller speaks over agent for more than a moment
+                and the agent keeps talking (interrupter persona)
+talk-over       total seconds both channels carry speech at once
+truncation      after a barge-in, does the agent's context hold
+                only what the caller actually heard? (session 3)
+Gate (constructed): at most 1 false cut-in across 20 scenarios,
+                    0 missed barge-ins</div>
+      </div>
+      <div class="step">
+        <p><strong>Write the gate: what blocks launch.</strong> The launch gate itself, who signs it and how it is reviewed, is taught in <a href="https://phoebefu6.github.io/learn-agent-launch-with-phoebe/courses/b9-the-launch-gate.html">learn-agent-launch, the launch gate</a>. Here you only write the voice lines that feed it.</p>
+        <div class="prompt-box good"><span class="label">★ Step 6 · the launch gate lines</span>BLOCKS LAUNCH (any one):
+  task success below 18 of 20 golden scenarios
+  any critical field below 100% slot accuracy
+  first-syllable p50 at or over 800 ms, or p95 at or over 1,500 ms
+  more than 1 false cut-in, or any missed barge-in
+  any handoff scenario not transferred
+DOES NOT BLOCK, BUT IS LOGGED:
+  WER per line (diagnostic: explains slot failures)
+  transcript-judge and audio-judge scores (until calibrated)
+AFTER LAUNCH: review a sample of real calls; simulated passes
+  are necessary, not sufficient
+(All thresholds constructed for Callwell.)</div>
+      </div>
+    </div>
+
+    <div class="callout tip">
+      <p><strong>Put WER under the table, not in it.</strong> The moment WER becomes a gate, people tune for it: a recogniser change that drops WER while breaking dates of birth will pass. Keep the gate on what the caller and the clinic feel, and keep WER where it is useful, as the first number you look at when a slot starts failing.</p>
+    </div>
+  </section>
+
+  <section class="section" id="exercise">
+    <div class="section-kicker">
+      <span class="klabel">Homework</span>
+      <h2>Before session 6</h2>
+      <span class="tag exercise">30 min</span>
+    </div>
+    <ol>
+      <li><strong>Finish your 20 scenarios.</strong> Complete the table from step 1 for your own agent, with the right outcome written for every row. Weight the mix by the calls your line actually gets.</li>
+      <li><strong>Find your c3 and your c2.</strong> Write one line where a recognition error would score high on WER and do no harm, and one where a small error would break the task. These two lines are the best argument you will have for gating on slots.</li>
+      <li><strong>Write two personas.</strong> Pick the two behaviours from Part 3 your callers are most likely to show, and write each as a short script with a goal, facts and a behaviour. Note how you will route them through an 8 kHz codec.</li>
+      <li><strong>List what you log.</strong> Against the "what to log on every call" card, mark what your build records today and what it does not. Bring the gaps; session 6 decides what you may keep.</li>
+    </ol>
+  </section>
+
+  <section class="section" id="quiz">
+    <div class="section-kicker">
+      <span class="klabel">Check yourself</span>
+      <h2>Three questions</h2>
+    </div>
+    <p>Clear all three and session 5 gets stamped in your passport.</p>
+
+    <div class="quiz-q" data-answer="2">
+      <p class="qtext">1 · In the WER widget's six constructed Callwell pairs, which line has the highest WER yet still books correctly?</p>
+      <button class="qopt" type="button">A · c2, "fourteenth" heard as "fourth"</button>
+      <button class="qopt" type="button">B · c6, the caller's "Um" dropped</button>
+      <button class="qopt" type="button">C · c3, "Riverside" written as "river side", at 22.2%</button>
+      <button class="qopt" type="button">D · c1, "Doctor Okafor" heard as "doctor oak offer"</button>
+      <p class="qwhy">c3 scores 22.2% (one substitution and one insertion over 9 reference words), the highest in the widget, and "river side" still resolves to the Riverside site. c2 is only 8.3% and breaks the booking; c1 at 16.7% breaks it too; c6 is harmless but scores 8.3%. WER ranks the lines differently from the harm they do.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="3">
+      <p class="qtext">2 · Word error rate can exceed 100%. Why?</p>
+      <button class="qopt" type="button">A · Because substitutions are counted twice, once as a deletion and once as an insertion</button>
+      <button class="qopt" type="button">B · Because WER is weighted by how important each word is</button>
+      <button class="qopt" type="button">C · It cannot; WER is capped at 100% by definition</button>
+      <button class="qopt" type="button">D · Because insertions are counted in the errors while N counts only the reference words, so a hypothesis with many extra words can have more errors than the reference has words</button>
+      <p class="qwhy">WER = (S + D + I) / N with N the number of reference words. Insertions add to the top without adding to the bottom, so a recogniser that writes a long sentence over a two-word answer can go past 100%. Every error weighs the same, which is why B is wrong too.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="1">
+      <p class="qtext">3 · Why does a judge that reads only transcripts miss talk-over?</p>
+      <button class="qopt" type="button">A · Because transcripts are always less accurate than audio</button>
+      <button class="qopt" type="button">B · Because two voices speaking at once become two tidy lines of text, and the overlap in time is not in the text at all</button>
+      <button class="qopt" type="button">C · Because language models cannot read speaker labels</button>
+      <button class="qopt" type="button">D · It does not miss it; talk-over always shows up as recognition errors</button>
+      <p class="qwhy">Talk-over is a timing fact: both channels carry speech at the same moment. A transcript records who said what, in order, and drops when. Measure talk-over with timing code over the two audio channels; use the transcript judge for content.</p>
+    </div>
+
+    <p class="quiz-score"></p>
+  </section>
+
+  <section class="section" id="official">
+    <div class="section-kicker">
+      <span class="klabel">Sources covered</span>
+      <h2>What this session teaches, and where it came from</h2>
+    </div>
+    <div class="covered">
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">Word error rate definition (Wikipedia, read 2026-11-08, reference tier)</span><span class="note">(S + D + I) / N with N the reference words, can exceed 100%, equal weights; NIST sclite equal weights reported, not read at source</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">OpenAI voice agents guide (read 2026-11-08)</span><span class="note">Measure the wait for a useful answer, compare the median and 95th percentile, measure acknowledgements separately</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">LiveKit Agents docs, metrics (read 2026-11-08)</span><span class="note">End-to-end latency, time to first token, time to first byte, named as the per-turn timings to log</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">Deepgram, Introducing Nova-3 (2025-02-12)</span><span class="note">Median streaming WER 6.84% on Deepgram's own test set; vendor-reported, re-verify before you rely on it</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">Kramer, Advice on Voice AI (2025-06-23)</span><span class="note">800 ms median aim and 1,500 ms proof-of-concept figure, used as the basis for constructed latency gates</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">WER widget: six constructed Callwell pairs</span><span class="note">Measured arithmetic on invented lines: 7 errors in 56 words, 12.5%, bookings broken 3 of 6; not any recogniser's real rate</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">Audio against transcript judging, simulated callers</span><span class="note">Current practice, no single primary source read; taught as design guidance with its limits marked</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">Callwell, its scenarios, personas and thresholds</span><span class="note">Constructed for teaching; no real clinic, caller or patient</span></div>
+    </div>
+    <p class="mono" style="margin-top:14px">Every fact on this page, and its verification tier, is recorded in the course's source map.</p>
+  </section>
+
+  <section class="cheat" id="cheatsheet">
+    <h3>Session 5 cheat sheet <span>· pin this</span></h3>
+    <div class="grid-2">
+      <div class="cheat-item"><b>Read from the top</b><span>Call outcome, then turn measures, then stage measures. Gate on the top; debug with the bottom.</span></div>
+      <div class="cheat-item"><b>Task success first</b><span>Booking made and every critical field correct, scored from the booking record, not the transcript.</span></div>
+      <div class="cheat-item"><b>WER = (S + D + I) / N</b><span>N is the reference words. Can pass 100%. Every error weighs the same. Print the normaliser beside it.</span></div>
+      <div class="cheat-item"><b>WER ranks the wrong line</b><span>c3 at 22.2% books correctly; c2 at 8.3% breaks the booking. Overall 12.5%, 3 of 6 broken.</span></div>
+      <div class="cheat-item"><b>Timing is not text</b><span>Talk-over, dead air and tone are invisible to a transcript judge. Measure timings from two audio channels.</span></div>
+      <div class="cheat-item"><b>Simulate through the codec</b><span>Personas, synthetic voice, 8 kHz, your real pipeline. Necessary, not sufficient.</span></div>
+    </div>
+  </section>
+
+  <div class="callout next">
+    <span class="nx-pill">Next session</span>
+    <p>The eval sheet says what must pass before a real caller hears the agent. Session 6 ships the call: how a phone call reaches your server at all, how a warm handoff to a person works without making the caller start again, what consent and data handling look like in general terms, and what the parts cost at today's list prices.</p>
+  </div>
+
+  <footer class="pagefoot">
+    <span>Session 5 of 6 · learn-voice-multimodal-agents-with-phoebe · by Phoebe Fu &nbsp;·&nbsp; 📚 <a href="https://phoebefu6.github.io/learn-with-phoebe/">Learn with Phoebe ↗</a></span>
+    <span><a href="04-images-in-the-loop.html">← Prev: Images in the loop</a> &nbsp;·&nbsp; <a href="06-shipping-the-call.html">Next: Shipping the call →</a></span>
+  </footer>
+
+</main>
+
+<script src="../assets/app.js?v=1"></script>
+<script src="../assets/vox-sample.js?v=1"></script>
+<script src="../assets/vox-live.js?v=3"></script>
+</body>
+</html>

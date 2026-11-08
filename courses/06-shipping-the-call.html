@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- social:start -->
+<meta name="description" content="Session 6 of 6. How a phone call reaches your agent (a Twilio media stream or SIP straight to a realtime model), the warm handoff that never makes a caller start again, fallbacks per stage, recording and AI-voice notices in general sourced terms, and a cost-per-minute formula. Ends with Callwell's go-live checklist.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Learn with Phoebe">
+<meta property="og:title" content="Shipping the call: phones, handoffs and consent - learn voice and multimodal agents with phoebe">
+<meta property="og:description" content="Session 6 of 6. Two routes from the phone network to your agent, the warm handoff, consent and notices, and what each minute of a call costs at dated list prices.">
+<meta property="og:url" content="https://phoebefu6.github.io/learn-voice-multimodal-agents-with-phoebe/courses/06-shipping-the-call.html">
+<meta property="og:image" content="https://phoebefu6.github.io/learn-voice-multimodal-agents-with-phoebe/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Shipping the call: phones, handoffs and consent - learn voice and multimodal agents with phoebe">
+<meta name="twitter:description" content="Session 6 of 6. Phone routes, warm handoffs, consent notices and a cost-per-minute formula, ending in a go-live checklist.">
+<meta name="twitter:image" content="https://phoebefu6.github.io/learn-voice-multimodal-agents-with-phoebe/assets/og-cover.png">
+<!-- social:end -->
+<title>Session 6 · Shipping the call: phones, handoffs and consent - learn voice and multimodal agents with phoebe</title>
+<link rel="stylesheet" href="../assets/style.css?v=2">
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="wrap">
+    <span class="crumb"><a href="../index.html">learn-voice-multimodal-agents-with-phoebe</a> / Session 6 of 6</span>
+    <button class="btn" id="toggle-all" type="button">Expand all</button>
+    <button class="btn primary" id="zoom-toggle" type="button">Projector zoom: off</button>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="eyebrow">Learn Voice and Multimodal Agents with Phoebe · Session 6 of 6</div>
+    <h1>Shipping the <span class="accent">call</span>: phones, handoffs and consent</h1>
+    <p class="sub">Everything so far has run on a laptop. Tonight the agent gets a phone number. That means a real phone network delivering narrowband audio to your server, a person waiting at the other end of every handoff, a greeting that has to tell callers what they are talking to, and a bill that runs by the minute. We draw the two routes a call can take to your agent, write the rules for when it hands the call to a human and what travels with it, set out what consent and notices look like in general, sourced terms, and build the formula that turns list prices into a cost per call minute. Then we walk Callwell's go-live checklist, gate by gate.</p>
+    <div class="chip-row">
+      <span class="chip level">🔴 Ship it</span>
+      <span class="chip audience">Builders putting an agent on a phone line</span>
+      <span class="chip audience">No code tonight, one go-live checklist</span>
+      <span class="chip time">45 min</span>
+    </div>
+    <div class="agenda">
+      <span class="a1" style="flex:1">0-3 · Welcome</span>
+      <span class="a2" style="flex:4">3-18 · Phone routes, handoffs, consent and cost</span>
+      <span class="a3" style="flex:5">18-40 · Build-along: Callwell's go-live checklist</span>
+      <span class="a4" style="flex:1">40-45 · Q&amp;A</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="section" id="intro">
+    <div class="section-kicker">
+      <span class="klabel">Part 0</span>
+      <h2>Where we start</h2>
+    </div>
+    <p class="lede">The running case is still the constructed Callwell example: an invented clinic group with sites at Riverside, Northgate and Harbour and one booking number. Over five sessions it got a cascaded pipeline, a latency budget, tuned turn settings, a photo path for referral letters and an eval sheet. None of that has met a real caller yet. Tonight is the last mile: the phone line itself, the person who picks up when the agent should not, what the caller must be told, and what each minute costs. Every price and default here is dated 2026-11-08; re-verify before you rely on any of them.</p>
+
+    <div class="legend">
+      <span class="pill">🎫 Clear all three quiz questions to stamp your passport</span>
+      <span class="pill">Live = presented in the 45 minutes</span>
+      <span class="pill">Self-study = the full depth, after class</span>
+      <span class="pill">★ Build-along = write it yourself</span>
+    </div>
+
+    <div class="callout win">
+      <p><strong>★ What you walk out with tonight.</strong> A choice between the two phone routes with what your code owns on each; a handoff rule with the summary that travels with every transfer; a greeting that carries the notices; a fallback for every stage; a cost-per-minute formula with your own labelled inputs; and a go-live checklist that points every gate back to the session that built it.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-1">
+    <div class="section-kicker">
+      <span class="klabel">Part 1 · covers telephony at concept level</span>
+      <h2>How a call reaches your agent</h2>
+      <span class="tag concept">5 min live</span>
+    </div>
+    <p class="lede">A caller dials a number on the public phone network (the PSTN). A carrier such as Twilio owns that number and turns the call into something your software can touch. From there it takes one of two routes. On the first, the carrier streams the raw call audio to your server over a WebSocket and you run the speech stack. On the second, the carrier hands the call over SIP straight to a realtime model, and your server only answers a webhook. The question that decides between them is the one from session 1: what do you need to see and control?</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A caller on the phone network reaches a number held by a carrier, then the call forks. Route A, media stream: Twilio Media Streams opened with Connect Stream sends audio both ways over a WebSocket to your app; your code owns base64 mu-law 8 kHz audio, resampling and sending audio back. Route B, SIP to the model: an Elastic SIP Trunk points at OpenAI's SIP address and a realtime model handles the audio; your code owns the realtime.call.incoming webhook, accepting the call and transferring it. SIP signalling and carrier contracts are not covered.">
+        <defs>
+          <filter id="v6aSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="61" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="v6aHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#0B8470" stroke-width="1" opacity=".5"/></pattern>
+          <marker id="v6aAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#10231F" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .v6aH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v6aL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v6aS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v6aB { font: 800 11px Inter, sans-serif; fill: #8F2C1C; }
+          .v6aA { font: 700 11px Inter, sans-serif; fill: #064E42; }
+          .v6aN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v6aH" x="30" y="24">HOW A PHONE CALL REACHES YOUR AGENT: TWO ROUTES, AND WHAT YOUR CODE OWNS ON EACH</text>
+
+        <g filter="url(#v6aSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M40 150 q6 -10 12 0 q6 10 12 0 q6 -10 12 0" stroke="#F07A63"/>
+          <circle cx="56" cy="178" r="13" fill="#FFFFFF"/>
+          <path d="M56 191 L56 226 M56 202 L42 216 M56 202 L70 216 M56 226 L46 248 M56 226 L66 248"/>
+          <path d="M80 200 L100 200" marker-end="url(#v6aAr)"/>
+          <rect x="106" y="172" width="132" height="56" rx="10" transform="rotate(-0.8 172 200)" fill="#FFFFFF"/>
+          <path d="M242 200 L264 200" marker-end="url(#v6aAr)"/>
+          <rect x="270" y="172" width="132" height="56" rx="10" transform="rotate(0.6 336 200)" fill="url(#v6aHc)"/>
+          <path d="M406 190 C430 186 432 96 452 96" marker-end="url(#v6aAr)"/>
+          <path d="M406 210 C430 214 432 268 452 268" marker-end="url(#v6aAr)"/>
+          <rect x="458" y="66" width="176" height="56" rx="10" transform="rotate(-0.6 546 94)" fill="#FFFFFF"/>
+          <path d="M638 94 L662 94" marker-end="url(#v6aAr)"/>
+          <rect x="668" y="66" width="176" height="56" rx="10" transform="rotate(0.6 756 94)" fill="#E8F6F2"/>
+          <rect x="458" y="134" width="386" height="50" rx="10" transform="rotate(-0.3 651 159)" fill="#FDEDE9" stroke="#C2412D"/>
+          <rect x="458" y="240" width="176" height="56" rx="10" transform="rotate(0.6 546 268)" fill="#FFFFFF"/>
+          <path d="M638 268 L662 268" marker-end="url(#v6aAr)"/>
+          <rect x="668" y="240" width="176" height="56" rx="10" transform="rotate(-0.6 756 268)" fill="#E8F6F2"/>
+          <rect x="458" y="308" width="386" height="50" rx="10" transform="rotate(0.3 651 333)" fill="#FDEDE9" stroke="#C2412D"/>
+        </g>
+
+        <text class="v6aL" x="56" y="268" text-anchor="middle">caller</text>
+        <text class="v6aL" x="172" y="196" text-anchor="middle">phone network</text>
+        <text class="v6aS" x="172" y="212" text-anchor="middle">PSTN</text>
+        <rect x="284" y="183" width="104" height="34" rx="6" fill="#FFFFFF"/>
+        <text class="v6aL" x="336" y="197" text-anchor="middle">your number</text>
+        <text class="v6aS" x="336" y="211" text-anchor="middle">from a carrier</text>
+
+        <text class="v6aA" x="460" y="54">ROUTE A · MEDIA STREAM</text>
+        <text class="v6aL" x="546" y="90" text-anchor="middle">Twilio Media Stream</text>
+        <text class="v6aS" x="546" y="106" text-anchor="middle">&lt;Connect&gt;&lt;Stream&gt;</text>
+        <text class="v6aL" x="756" y="90" text-anchor="middle">your WebSocket app</text>
+        <text class="v6aS" x="756" y="106" text-anchor="middle">audio both ways</text>
+        <text class="v6aB" x="472" y="153">YOUR CODE OWNS</text>
+        <text class="v6aS" x="472" y="171">base64 mu-law 8 kHz, resampling, sending audio back</text>
+
+        <text class="v6aA" x="460" y="228">ROUTE B · SIP TO THE MODEL</text>
+        <text class="v6aL" x="546" y="264" text-anchor="middle">Elastic SIP Trunk</text>
+        <text class="v6aS" x="546" y="280" text-anchor="middle">to OpenAI's SIP address</text>
+        <text class="v6aL" x="756" y="264" text-anchor="middle">realtime model</text>
+        <text class="v6aS" x="756" y="280" text-anchor="middle">handles the audio</text>
+        <text class="v6aB" x="472" y="327">YOUR CODE OWNS</text>
+        <text class="v6aS" x="472" y="345">webhook realtime.call.incoming: accept, transfer</text>
+
+        <text class="v6aA" x="106" y="304">CONCEPT LEVEL ONLY</text>
+        <text class="v6aS" x="106" y="322">SIP signalling and carrier</text>
+        <text class="v6aS" x="106" y="338">contracts are not covered</text>
+
+        <text class="v6aN" x="30" y="384">Route B detail is from Twilio's tutorial (2025-08-29); OpenAI's own SIP guide returned 404 on 2026-11-08.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - both routes start at the same number; route A hands you the audio, route B hands you a webhook, and the coral box is the code that is yours either way</figcaption>
+    </figure>
+
+    <details class="card" open>
+      <summary><span class="mode live">Live</span>Route A: a media stream you run the speech stack on<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Twilio Media Streams "stream raw audio from live phone calls over WebSockets to your application in near real-time" (Twilio docs, modified 2026-10-30, read 2026-11-08). A bidirectional stream, opened with <code>&lt;Connect&gt;&lt;Stream&gt;</code>, lets your application send audio back into the call. The format is fixed: the encoding is always <code>audio/x-mulaw</code>, the sample rate always 8000, one channel. Audio you send back must be the same, base64 encoded, with no audio file header bytes in the payload.</p>
+        <p>This is the route for Callwell's cascaded pipeline. You choose the speech recogniser, the model and the voice, you keep a transcript at every hand-off, and you own the plumbing: decoding the frames, resampling if a stage wants a different rate (OpenAI's Realtime API accepts G.711 mu-law directly; PCM input is 24 kHz), turn detection, barge-in and, on a WebSocket, truncating the reply the caller did not hear (session 3).</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Route B: SIP straight to a realtime model<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Twilio's tutorial (2025-08-29, a vendor tutorial) creates an Elastic SIP Trunk and sets its address to <code>sip:&lt;project-id&gt;@sip.api.openai.com;transport=tls</code>. When a call arrives, OpenAI fires a <code>realtime.call.incoming</code> webhook at your project, and in the tutorial's words "the first thing you have to do is respond and say you are accepting the call". The realtime model then hears and speaks; your server never touches an audio frame.</p>
+        <p>Treat the detail as vendor-tutorial tier. OpenAI's own SIP guide returned 404 when we read on 2026-11-08, and a secondary summary of it says the app can also reject, refer (transfer) or hang up a call by REST. That transfer is the handoff in Part 2, so confirm how it works on the current guide before you design around it.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>What concept level means here, and what is left out<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Concept level means you can say which route a call takes, what format the audio is in at each point, and which code is yours. It does not mean you can run a telephony stack. Left out on purpose: SIP signalling, codecs beyond naming G.711, number porting, carrier contracts and regional phone rules. A carrier's own documentation and support team own those.</p>
+        <p>The routes map onto session 1's choice. Route A suits a cascade, or a realtime model you still want to front with your own server for logging. Route B suits a speech-to-speech build where the realtime session owning the audio is the point. Either way you still need the turn settings from session 3 and the eval gates from session 5.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>The carrier's docs set your audio format, not your model's.</strong> Twilio's WebSocket message reference (modified 2026-10-08, read 2026-11-08) says of the media format: "Value is always <code>audio/x-mulaw</code>". Whatever your speech stack prefers, 8 kHz mu-law is what arrives and what you must send back. On route B the same constraint exists; the realtime service handles it for you, which is exactly why you cannot see it.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-2">
+    <div class="section-kicker">
+      <span class="klabel">Part 2 · covers failure handling</span>
+      <h2>Fallbacks and the warm handoff</h2>
+      <span class="tag concept">5 min live</span>
+    </div>
+    <p class="lede">A booking agent that never hands a call to a person will, sooner or later, keep an upset caller in a loop. Session 1's map already marked the door to a human; session 4 added the unreadable critical field. Tonight that door becomes a rule checked on every turn, and the handoff becomes warm: a summary travels with the transfer, so the receptionist starts from what is already known and the caller never says their date of birth twice.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 410" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A decision tree checked on each caller turn. Four questions in order: asks for a person or in distress; asks a medical question; a field failed twice or is unreadable; booking tool or a vendor down. Any yes leads to a warm transfer, which carries a handoff summary card: who, with date of birth confirmed; wants a new booking at Riverside; with Doctor Okafor; confirmed date of birth, site and clinician; still open the slot; why now, asked a medical question; photo file id and read fields. All no keeps the call for the next turn. A silent caller can be prompted with server_vad idle_timeout_ms between 5,000 and 30,000 ms.">
+        <defs>
+          <filter id="v6bSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="67" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="v6bHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#0B8470" stroke-width="1" opacity=".5"/></pattern>
+          <marker id="v6bAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#10231F" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .v6bH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v6bL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v6bS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v6bB { font: 800 11px Inter, sans-serif; fill: #8F2C1C; }
+          .v6bA { font: 700 11px Inter, sans-serif; fill: #064E42; }
+          .v6bN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v6bH" x="30" y="24">KEEP THE CALL OR HAND IT TO A PERSON: CHECKED ON EVERY TURN (CONSTRUCTED)</text>
+        <text class="v6bA" x="40" y="50">EACH CALLER TURN</text>
+
+        <g filter="url(#v6bSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="40" y="60" width="290" height="36" rx="8" transform="rotate(-0.5 185 78)" fill="#FFFFFF"/>
+          <path d="M185 98 L185 116" marker-end="url(#v6bAr)"/>
+          <rect x="40" y="120" width="290" height="36" rx="8" transform="rotate(0.4 185 138)" fill="#FFFFFF"/>
+          <path d="M185 158 L185 176" marker-end="url(#v6bAr)"/>
+          <rect x="40" y="180" width="290" height="36" rx="8" transform="rotate(-0.4 185 198)" fill="#FFFFFF"/>
+          <path d="M185 218 L185 236" marker-end="url(#v6bAr)"/>
+          <rect x="40" y="240" width="290" height="36" rx="8" transform="rotate(0.5 185 258)" fill="#FFFFFF"/>
+          <path d="M185 278 L185 300" marker-end="url(#v6bAr)"/>
+          <rect x="40" y="306" width="290" height="40" rx="8" transform="rotate(-0.5 185 326)" fill="#E8F6F2"/>
+          <path d="M334 78 L380 78 M334 138 L380 138 M334 198 L380 198 M334 258 L380 258 M380 78 L380 258"/>
+          <path d="M380 168 L414 168" marker-end="url(#v6bAr)"/>
+          <rect x="420" y="142" width="150" height="52" rx="10" transform="rotate(-1 495 168)" fill="url(#v6bHc)"/>
+          <path d="M574 168 L604 168" marker-end="url(#v6bAr)"/>
+          <rect x="610" y="56" width="240" height="236" rx="12" transform="rotate(0.8 730 174)" fill="#FDEDE9" stroke="#C2412D"/>
+          <path d="M345 326 q6 -10 12 0 q6 10 12 0 q6 -10 12 0" stroke="#F07A63"/>
+        </g>
+
+        <text class="v6bL" x="56" y="83">asks for a person, or in distress?</text>
+        <text class="v6bL" x="56" y="143">asks a medical question?</text>
+        <text class="v6bL" x="56" y="203">a field failed twice or unreadable?</text>
+        <text class="v6bL" x="56" y="263">booking tool or a vendor down?</text>
+        <text class="v6bS" x="194" y="111">no</text>
+        <text class="v6bS" x="194" y="171">no</text>
+        <text class="v6bS" x="194" y="231">no</text>
+        <text class="v6bS" x="194" y="293">no</text>
+        <text class="v6bS" x="342" y="71">yes</text>
+        <text class="v6bS" x="342" y="131">yes</text>
+        <text class="v6bS" x="342" y="191">yes</text>
+        <text class="v6bS" x="342" y="251">yes</text>
+        <text class="v6bL" x="185" y="324" text-anchor="middle">keep the call</text>
+        <text class="v6bS" x="185" y="339" text-anchor="middle">next turn, same checks</text>
+
+        <rect x="434" y="152" width="122" height="32" rx="6" fill="#FFFFFF"/>
+        <text class="v6bL" x="495" y="166" text-anchor="middle">warm transfer</text>
+        <text class="v6bS" x="495" y="180" text-anchor="middle">summary goes too</text>
+
+        <text class="v6bB" x="626" y="82">HANDOFF SUMMARY</text>
+        <text class="v6bS" x="626" y="106">who: caller name, DOB confirmed</text>
+        <text class="v6bS" x="626" y="126">wants: new booking, Riverside</text>
+        <text class="v6bS" x="626" y="146">with: Doctor Okafor</text>
+        <text class="v6bS" x="626" y="166">confirmed: DOB, site, clinician</text>
+        <text class="v6bS" x="626" y="186">still open: the slot</text>
+        <text class="v6bS" x="626" y="206">why now: asked a medical question</text>
+        <text class="v6bS" x="626" y="226">photo: file id + read fields</text>
+        <text class="v6bA" x="626" y="256">read before saying hello</text>
+        <text class="v6bS" x="626" y="316">the receptionist starts here</text>
+
+        <text class="v6bS" x="40" y="370">a silent caller: server_vad idle_timeout_ms (5,000 to 30,000 ms) can prompt them</text>
+        <text class="v6bN" x="30" y="394">Triggers from session 1's map and session 4's critical fields; the summary format is constructed.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - four questions on every turn, any yes transfers the call, and the coral card is why the transfer is warm: the person starts from what the agent already confirmed</figcaption>
+    </figure>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>The triggers: when the agent stops<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Callwell's triggers come straight from earlier sessions. <strong>The caller asks for a person</strong>, at any point, in any words: never argue, never ask why. <strong>The caller sounds distressed.</strong> <strong>A medical question</strong>: the agent books appointments and does not interpret symptoms or letters. <strong>Recognition fails twice on the same field</strong>, such as a clinician's name that keeps coming back wrong. <strong>A critical field is unreadable</strong> on the referral photo and the caller cannot supply it (session 4's routing rule). <strong>A tool is down</strong>, so the booking cannot be checked.</p>
+        <p>Two notes. Distress is the hardest trigger to detect from a transcript, which is one reason session 5 asked for a sample of real calls to be reviewed by a person. And a silent caller is not yet a trigger: OpenAI's <code>server_vad</code> has an optional <code>idle_timeout_ms</code> (5,000 to 30,000 ms, no default listed, read 2026-11-08), described as a timeout "after which a model response will be triggered automatically", which lets the agent ask "are you still there?" before anyone transfers anything.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>The handoff summary: what travels with the transfer<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>A cold transfer drops the caller into a queue and the receptionist asks "how can I help?", so the caller starts again. A warm transfer passes a short summary first: <strong>who</strong> the caller is and which identity checks are done, <strong>what they want</strong>, <strong>what is already confirmed</strong> and what is still open, <strong>why</strong> the agent handed over, and any file the caller sent. The receptionist reads it before saying hello.</p>
+        <p>Keep it short enough to read in the seconds before pickup, write it from confirmed fields only (session 4's status flags make that easy), and never put a guess in it as a fact. If the agent was unsure of a name, the summary says "clinician not confirmed", not its best guess.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>Degraded modes when a vendor is down<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Plan one fallback per stage, before launch, and test each one. In a cascade, each stage is a separate vendor you can swap: a second speech recogniser behind a flag, a second voice, a smaller model for the acknowledgement while the main one recovers. In a speech-to-speech build, LiveKit's pipeline page (read 2026-11-08) names the cost plainly: "Less provider flexibility: You're committed to a single provider's model for the full speech-to-speech path." If that provider fails, the whole speech path fails at once, and the fallback is a route around the agent, not a swap inside it.</p>
+        <p>Whatever the pipeline, the last fallback is the same: the call goes to a person, or to a message that says plainly the line is busy and when someone will call back. A tool outage is its own case: the agent can still take the details and promise a call back, as long as it never confirms a booking it could not check.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>Two vendor pages, one design rule.</strong> LiveKit lists "Less provider flexibility" as a realtime model's cost, which is a fallback problem as much as a pricing one. OpenAI's voice agents guide (read 2026-11-08) tells builders to measure an acknowledgement such as "I'm checking" separately from the answer the caller needs. Put together: when something is slow or down, say something true and short at once, then either recover or hand over. Silence is the one response that is never a fallback.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-3">
+    <div class="section-kicker">
+      <span class="klabel">Part 3 · covers recording and AI notices, and cost</span>
+      <h2>Consent, notices and cost per minute</h2>
+      <span class="tag concept">5 min live</span>
+    </div>
+    <p class="lede">This part is general and sourced, and it is not legal advice. What a clinic must tell callers, and what it may record, is decided by its lawyers for its jurisdictions. What a builder can do is know the shape of the rules, put the notices in the greeting, keep recordings under the same rules as any other patient data, and understand which meters run during a call. Prices are vendor list prices read on 2026-11-08; re-verify before you rely on them.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 372" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="One stretch of a Callwell call on a timeline: caller speaks, silence, agent speaks, silence, caller speaks. Below, the meters. Telephony runs for the whole call. Speech to text runs on all audio you stream in, including silence. The language model runs in the silence after the caller's turn. Text to speech runs while the agent speaks. For a speech-to-speech model, audio input tokens run while the caller speaks, with a question mark over the silences, and audio output tokens run while the agent speaks. The silences are shaded coral.">
+        <defs>
+          <filter id="v6cSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="71" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="v6cHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#0B8470" stroke-width="1" opacity=".5"/></pattern>
+          <marker id="v6cAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#10231F" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .v6cH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v6cL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v6cS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v6cB { font: 800 11px Inter, sans-serif; fill: #8F2C1C; }
+          .v6cA { font: 700 11px Inter, sans-serif; fill: #064E42; }
+          .v6cW { font: 800 12px Inter, sans-serif; fill: #FFFFFF; }
+          .v6cN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v6cH" x="30" y="24">WHICH METER RUNS WHEN: ONE STRETCH OF A CALLWELL CALL (CONSTRUCTED TIMING)</text>
+
+        <g filter="url(#v6cSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="400" y="44" width="60" height="274" rx="6" fill="#FDEDE9" stroke="#F07A63" stroke-dasharray="5 4"/>
+          <rect x="640" y="44" width="60" height="274" rx="6" fill="#FDEDE9" stroke="#F07A63" stroke-dasharray="5 4"/>
+          <rect x="250" y="50" width="148" height="26" rx="5" transform="rotate(-0.4 324 63)" fill="#A8DCD1"/>
+          <rect x="462" y="50" width="176" height="26" rx="5" transform="rotate(0.4 550 63)" fill="#0B8470"/>
+          <rect x="702" y="50" width="148" height="26" rx="5" transform="rotate(-0.4 776 63)" fill="#A8DCD1"/>
+          <rect x="250" y="103" width="600" height="14" rx="4" fill="#0B8470"/>
+          <rect x="250" y="138" width="600" height="14" rx="4" fill="#A8DCD1"/>
+          <rect x="404" y="173" width="52" height="14" rx="4" fill="#0B8470"/>
+          <rect x="462" y="208" width="176" height="14" rx="4" fill="#0B8470"/>
+          <rect x="250" y="268" width="148" height="14" rx="4" fill="#A8DCD1"/>
+          <rect x="404" y="268" width="52" height="14" rx="4" fill="url(#v6cHc)"/>
+          <rect x="644" y="268" width="52" height="14" rx="4" fill="url(#v6cHc)"/>
+          <rect x="702" y="268" width="148" height="14" rx="4" fill="#A8DCD1"/>
+          <rect x="462" y="298" width="176" height="14" rx="4" fill="#0B8470"/>
+        </g>
+
+        <text class="v6cL" x="30" y="67">the call</text>
+        <text class="v6cL" x="324" y="67" text-anchor="middle">caller speaks</text>
+        <text class="v6cS" x="430" y="40" text-anchor="middle">silence</text>
+        <text class="v6cW" x="550" y="67" text-anchor="middle">agent speaks</text>
+        <text class="v6cS" x="670" y="40" text-anchor="middle">silence</text>
+        <text class="v6cL" x="776" y="67" text-anchor="middle">caller speaks</text>
+
+        <text class="v6cL" x="30" y="114">telephony</text>
+        <text class="v6cS" x="30" y="128">per call minute</text>
+        <text class="v6cL" x="30" y="149">speech to text</text>
+        <text class="v6cS" x="30" y="163">per minute you stream in</text>
+        <text class="v6cL" x="30" y="184">language model</text>
+        <text class="v6cS" x="30" y="198">tokens per turn</text>
+        <text class="v6cL" x="30" y="219">text to speech</text>
+        <text class="v6cS" x="30" y="233">per character spoken</text>
+        <text class="v6cA" x="30" y="256">OR, SPEECH-TO-SPEECH TOKENS</text>
+        <text class="v6cL" x="30" y="279">audio in</text>
+        <text class="v6cS" x="30" y="293">caller audio</text>
+        <text class="v6cL" x="30" y="309">audio out</text>
+        <text class="v6cS" x="30" y="323">agent audio</text>
+        <rect x="422" y="270" width="16" height="11" rx="2" fill="#FFFFFF"/>
+        <text class="v6cB" x="430" y="279" text-anchor="middle">?</text>
+        <rect x="662" y="270" width="16" height="11" rx="2" fill="#FFFFFF"/>
+        <text class="v6cB" x="670" y="279" text-anchor="middle">?</text>
+
+        <text class="v6cN" x="30" y="346">Bars show when a meter runs, not what it costs. ? = the price page does not say how silence is billed.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - telephony and a streamed recogniser keep running through the coral silences; the model and the voice run only in bursts, which is why a per-minute figure depends on how the call is shaped</figcaption>
+    </figure>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Consent and notices, in general terms<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p><strong>Recording.</strong> The Reporters Committee for Freedom of the Press recording guide (read 2026-11-08, no page date, a journalism reference) sets out the US shape: one-party consent is the federal floor, about 11 states primarily require all-party consent, and on calls that cross state lines the guide advises assuming the stricter state law applies. State rules change; whoever advises the clinic checks each one.</p>
+        <p><strong>Notices.</strong> As practice, not as a legal requirement we are stating: tell callers in the greeting that they are talking to an automated assistant, that the call is recorded or transcribed, and how to reach a person. It costs a few seconds and removes the most common reason a caller feels misled.</p>
+        <p><strong>Health context.</strong> Recorded or transcribed calls are data, and your privacy rules and contracts cover them like any other patient record: who can hear them, how long they are kept, which vendors process them. On HIPAA specifically, secondary summaries report that HHS guidance treats audio-only telehealth as allowed with reasonable safeguards and treats VoIP and stored audio as electronic; the HHS page itself could not be read on 2026-11-08 (reported tier). Read the regulator's guidance at hhs.gov, with whoever advises the clinic.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Outbound against inbound: what FCC 24-17 covers<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>The FCC's Declaratory Ruling FCC 24-17 (adopted 2024-02-02, released 2024-02-08, read at source) holds that the TCPA's restrictions on "artificial or prerecorded voice" cover current AI technologies that generate human voices, so such calls need the prior express consent of the called party, absent an emergency purpose or an exemption.</p>
+        <p>The ruling is about calls you <strong>place</strong>. Callwell's agent answers calls that patients place to the clinic, which is a different situation. The moment Callwell adds outbound reminder calls in the agent's voice, those calls fall under the ruling, and the consent question has to be answered before the first one dials. Scope creep from inbound to outbound is the common way a team walks into this without noticing.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>Cost per minute: the formula and the dated prices<span class="mini">4 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p><strong>The formula, for a cascade:</strong> cost per call minute = speech-to-text minutes + model tokens + speech characters + telephony minutes, each divided back to one minute of call. For speech-to-speech, swap the first three for audio tokens in and out plus any text tokens. The figure above is the reason it is a formula and not a number: the meters run at different times, so the same agent costs different amounts on a chatty call and a quiet one.</p>
+        <table class="clean">
+          <thead><tr><th>Part</th><th>List price, read 2026-11-08 (vendor-reported, re-verify)</th></tr></thead>
+          <tbody>
+            <tr><td>OpenAI gpt-realtime-2.1</td><td>Audio $32 in / $64 out per 1M tokens; no per-minute figure published, so do not convert</td></tr>
+            <tr><td>OpenAI gpt-realtime-2.1-mini</td><td>Audio $10 in / $20 out per 1M tokens</td></tr>
+            <tr><td>OpenAI gpt-live-1</td><td>$0.05 per minute, billed per second; backend model and tool use charged on top</td></tr>
+            <tr><td>OpenAI gpt-4o-transcribe</td><td>$0.006 per minute (OpenAI marks it estimated)</td></tr>
+            <tr><td>Deepgram Nova-3 streaming</td><td>$0.0077 per minute</td></tr>
+            <tr><td>Deepgram Aura-2 speech</td><td>$0.030 per 1,000 characters</td></tr>
+            <tr><td>Deepgram Voice Agent API</td><td>$0.075 per minute, bundled speech to text, model orchestration and speech</td></tr>
+          </tbody>
+        </table>
+        <p>These are not a ranking. A bundle, a per-minute session with extras on top, and three separately metered parts contain different things; telephony is outside all of them. Compare like with like, on your own call shape.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>A 2024 ruling and a journalism guide, both read at source.</strong> FCC 24-17 settled that an AI-generated voice is an "artificial" voice under the TCPA, which put outbound AI calls under the consent rules that already applied to robocalls. The RCFP guide's advice on calls between states is to "assume that the stricter state law will apply". Neither is written for clinic booking lines, which is exactly why the greeting carries notices and the outbound question goes to whoever advises the clinic.</p>
+    </div>
+  </section>
+
+  <section class="section" id="demo-1">
+    <div class="section-kicker">
+      <span class="klabel">Build-along</span>
+      <h2>Callwell's go-live checklist</h2>
+      <span class="tag demo">★ 22 min · everyone builds</span>
+    </div>
+    <p class="lede">Write Callwell's (constructed) go-live checklist with the steps below, or your own product's with Callwell as the worked answer. Every gate points back to the session that built it. The launch decision itself, who signs it and how a rollback is triggered, is taught in <a href="https://phoebefu6.github.io/learn-agent-launch-with-phoebe/courses/b9-the-launch-gate.html">learn-agent-launch, the launch gate</a>; here we fill in what a voice agent adds to it.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 392" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Eight gates in order, snaking across two rows. Row one: 1 route chosen, media stream or SIP; 2 greeting and notices, automated and recorded; 3 latency budget, session 2 p50 and p95; 4 turn settings, session 3 threshold. Row two, right to left: 5 photo path, session 4 read back; 6 eval gates, session 5 task success; 7 handoff and fallbacks, triggers and summary; 8 monitoring and rollback, week-one watch list. Gate 8 leads to the launch decision, go, hold or roll back, run by learn-agent-launch b9. Beside it, the week-one watch list: p50 and p95 first-syllable latency, false cut-ins, task success, handoff rate.">
+        <defs>
+          <filter id="v6dSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="79" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="v6dHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#0B8470" stroke-width="1" opacity=".5"/></pattern>
+          <marker id="v6dAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#10231F" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .v6dH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v6dL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v6dS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v6dB { font: 800 11px Inter, sans-serif; fill: #8F2C1C; }
+          .v6dA { font: 700 11px Inter, sans-serif; fill: #064E42; }
+          .v6dN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v6dH" x="30" y="24">CALLWELL'S GO-LIVE CHECKLIST: EIGHT GATES, IN ORDER (CONSTRUCTED)</text>
+
+        <g filter="url(#v6dSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="30" y="60" width="180" height="60" rx="10" transform="rotate(-0.8 120 90)" fill="#FFFFFF"/>
+          <path d="M214 90 L234 90" marker-end="url(#v6dAr)"/>
+          <rect x="240" y="60" width="180" height="60" rx="10" transform="rotate(0.6 330 90)" fill="#FFFFFF"/>
+          <path d="M424 90 L444 90" marker-end="url(#v6dAr)"/>
+          <rect x="450" y="60" width="180" height="60" rx="10" transform="rotate(-0.5 540 90)" fill="#E8F6F2"/>
+          <path d="M634 90 L654 90" marker-end="url(#v6dAr)"/>
+          <rect x="660" y="60" width="180" height="60" rx="10" transform="rotate(0.7 750 90)" fill="#E8F6F2"/>
+          <path d="M750 124 L750 184" marker-end="url(#v6dAr)"/>
+          <path d="M780 156 q6 -10 12 0 q6 10 12 0 q6 -10 12 0" stroke="#F07A63"/>
+          <rect x="660" y="190" width="180" height="60" rx="10" transform="rotate(-0.6 750 220)" fill="#E8F6F2"/>
+          <path d="M656 220 L636 220" marker-end="url(#v6dAr)"/>
+          <rect x="450" y="190" width="180" height="60" rx="10" transform="rotate(0.5 540 220)" fill="#E8F6F2"/>
+          <path d="M446 220 L426 220" marker-end="url(#v6dAr)"/>
+          <rect x="240" y="190" width="180" height="60" rx="10" transform="rotate(-0.7 330 220)" fill="#FFFFFF"/>
+          <path d="M236 220 L216 220" marker-end="url(#v6dAr)"/>
+          <rect x="30" y="190" width="180" height="60" rx="10" transform="rotate(0.8 120 220)" fill="url(#v6dHc)"/>
+          <path d="M120 254 L120 284" marker-end="url(#v6dAr)"/>
+          <rect x="30" y="290" width="380" height="64" rx="10" transform="rotate(-0.4 220 322)" fill="#FDEDE9" stroke="#C2412D"/>
+          <rect x="450" y="290" width="390" height="64" rx="10" transform="rotate(0.3 645 322)" fill="#FFFFFF"/>
+        </g>
+
+        <text class="v6dL" x="120" y="86" text-anchor="middle">1 route chosen</text>
+        <text class="v6dS" x="120" y="104" text-anchor="middle">media stream or SIP</text>
+        <text class="v6dL" x="330" y="86" text-anchor="middle">2 greeting, notices</text>
+        <text class="v6dS" x="330" y="104" text-anchor="middle">automated, recorded</text>
+        <text class="v6dL" x="540" y="86" text-anchor="middle">3 latency budget</text>
+        <text class="v6dS" x="540" y="104" text-anchor="middle">session 2: p50, p95</text>
+        <text class="v6dL" x="750" y="86" text-anchor="middle">4 turn settings</text>
+        <text class="v6dS" x="750" y="104" text-anchor="middle">session 3: threshold</text>
+        <text class="v6dL" x="750" y="216" text-anchor="middle">5 photo path</text>
+        <text class="v6dS" x="750" y="234" text-anchor="middle">session 4: read back</text>
+        <text class="v6dL" x="540" y="216" text-anchor="middle">6 eval gates</text>
+        <text class="v6dS" x="540" y="234" text-anchor="middle">session 5: task success</text>
+        <text class="v6dL" x="330" y="216" text-anchor="middle">7 handoff, fallbacks</text>
+        <text class="v6dS" x="330" y="234" text-anchor="middle">triggers and summary</text>
+        <rect x="38" y="202" width="164" height="38" rx="6" fill="#FFFFFF"/>
+        <text class="v6dL" x="120" y="216" text-anchor="middle">8 monitoring, rollback</text>
+        <text class="v6dS" x="120" y="234" text-anchor="middle">week-one watch list</text>
+
+        <text class="v6dB" x="46" y="314">LAUNCH DECISION</text>
+        <text class="v6dS" x="46" y="332">go, hold or roll back: learn-agent-launch b9</text>
+        <text class="v6dA" x="466" y="312">WATCH IN WEEK ONE</text>
+        <text class="v6dS" x="466" y="328">p50 and p95 first-syllable latency, false cut-ins,</text>
+        <text class="v6dS" x="466" y="344">task success, handoff rate</text>
+
+        <text class="v6dN" x="30" y="378">Each gate points back to the session that built it. A gate you cannot tick is a reason to hold.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - eight gates from route to rollback; the teal ones were built in sessions 2 to 5, and the coral launch decision is only as good as the gate before it</figcaption>
+    </figure>
+
+    <div class="steps">
+      <div class="step">
+        <p><strong>Choose the route.</strong> Write which route the call takes, and the one line of code ownership that comes with it.</p>
+        <div class="prompt-box good"><span class="label">★ Step 1 · the route</span>Route: A, Twilio Media Stream (&lt;Connect&gt;&lt;Stream&gt;) to our server
+Why:   Callwell runs a cascade (session 1) and needs a transcript
+       at every hand-off; route A hands us the audio to run it on
+We own: mu-law 8 kHz frames in and out (base64, no header bytes),
+        turn detection, barge-in and truncation (session 3)
+Revisit if: we move to a speech-to-speech model, then compare
+        route B (SIP trunk, realtime.call.incoming webhook)</div>
+      </div>
+      <div class="step">
+        <p><strong>Write the greeting with the notices.</strong> Short, spoken, and first. The wording below is constructed for teaching and is not legal advice: the clinic's advisers decide the final text for its jurisdictions.</p>
+        <div class="prompt-box good"><span class="label">★ Step 2 · greeting (constructed wording)</span>"Thanks for calling Callwell. You're speaking with our automated
+booking assistant. This call is recorded and transcribed so we can
+handle your booking. You can ask for a person at any time."
+
+Checks: says automated / says recorded and transcribed /
+        says how to reach a person / under about ten seconds spoken
+Owner of final wording: the clinic's advisers, per jurisdiction</div>
+      </div>
+      <div class="step">
+        <p><strong>Write the handoff triggers and the summary format.</strong> Every trigger from Part 2, and the summary the receptionist reads before pickup.</p>
+        <div class="prompt-box good"><span class="label">★ Step 3 · triggers and summary</span>Hand to a person when ANY of:
+- caller asks for a person (any wording, no questions asked)
+- caller sounds distressed
+- caller asks a medical question
+- recognition fails twice on the same field
+- a critical referral field is unreadable and caller cannot supply it
+- booking tool or a speech vendor is down
+
+Summary (confirmed fields only, never a guess):
+who:        name, date of birth  [confirmed / not confirmed]
+wants:      new booking | change | cancel, site, clinician
+confirmed:  list of fields the caller confirmed by voice
+still open: list of fields not yet settled
+why now:    which trigger fired
+files:      referral photo file id + extracted fields with status</div>
+      </div>
+      <div class="step">
+        <p><strong>Write a fallback for every stage.</strong> One line each: what happens, what the caller hears. Test each one before launch by switching the stage off.</p>
+        <div class="prompt-box good"><span class="label">★ Step 4 · fallbacks per stage</span>phone route down   -&gt; carrier forwards to the front desk number
+speech to text     -&gt; switch to second recogniser (flag); if both
+                      fail, hand over with what is confirmed so far
+language model     -&gt; short acknowledgement, retry once, then hand over
+booking tool       -&gt; "I can't check the diary right now"; take
+                      details, promise a call back, never confirm a slot
+text to speech     -&gt; switch to second voice vendor
+caller silent      -&gt; idle_timeout_ms prompt "are you still there?",
+                      then a closing line and end of call
+Last resort        -&gt; a person, or a busy message with a call-back time</div>
+      </div>
+      <div class="step">
+        <p><strong>Compute a constructed cost per minute.</strong> Use the formula from Part 3 with every input labelled. The two modelled inputs below are numbers we chose for teaching, not quotes; your numbers will differ.</p>
+        <div class="prompt-box good"><span class="label">★ Step 5 · cost per call minute (constructed)</span>speech to text   Nova-3 streaming, whole call streamed
+                 $0.0077 per min       [vendor list, 2026-11-08]
+model tokens     $0.004 per call min   [MODELLED: depends on model,
+                                        prompt size, turns per minute]
+speech           450 characters per call min x $0.030 per 1,000
+                 = $0.0135             [450 chars MODELLED; price vendor]
+telephony        $0.010 per min        [MODELLED: not a quoted carrier price]
+--------------------------------------------------------------------
+total            about $0.035 per call minute   (constructed)
+
+Your numbers will differ. Re-verify every price before you rely on it,
+and replace each MODELLED line with your own measured call shape.</div>
+      </div>
+      <div class="step">
+        <p><strong>Make the launch decision and write the week-one watch list.</strong> The gate itself runs as in the launch-gate seam; what a voice agent adds is the list of numbers someone looks at every day of the first week, each with the target set in an earlier session.</p>
+        <div class="prompt-box good"><span class="label">★ Step 6 · launch decision and week one</span>Decision: go / hold / roll back   (gates 1-7 all ticked, or hold)
+Rollback: carrier forwards the number back to the front desk;
+          who can trigger it: [named owner], how fast: [minutes]
+
+Watch daily in week one, against the targets you set:
+- first-syllable latency, p50 and p95   (budget from session 2)
+- false cut-ins per call                (threshold from session 3)
+- task success: booking right end to end (eval gates, session 5)
+- handoff rate, and the reasons it fired (triggers, step 3)
+Review a sample of real calls with a person, under the clinic's
+data rules (consent and retention settled first).</div>
+      </div>
+    </div>
+
+    <div class="callout tip">
+      <p><strong>A rising handoff rate is not always bad news.</strong> In week one it often means the triggers are doing their job on calls the eval set never imagined. Read the reasons before you tune them down: a cluster of "recognition failed twice" on one clinician's name is a speech fix, while a cluster of medical questions is a sign the greeting should say what the line is for.</p>
+    </div>
+  </section>
+
+  <section class="section" id="exercise">
+    <div class="section-kicker">
+      <span class="klabel">Homework</span>
+      <h2>Before you go live</h2>
+      <span class="tag exercise">30 min</span>
+    </div>
+    <ol>
+      <li><strong>Draw your route.</strong> Route A or B for your product, with the formats at each point and the coral box of code you own. If you cannot fill the box, you are not ready to pick the route.</li>
+      <li><strong>Run a warm handoff by hand.</strong> Give a colleague only your summary format, filled in from a test call, and ask them to pick up the call. Note every question they had to ask the caller again; each one is a missing field.</li>
+      <li><strong>Switch one stage off.</strong> In a test environment, disable one vendor and call in. Write down what the caller heard and how long before it happened. Fix whatever made silence the answer.</li>
+      <li><strong>Fill in your own cost line.</strong> Replace every modelled input in step 5 with a number from your own test calls and current price pages, dated. Keep the labels.</li>
+    </ol>
+  </section>
+
+  <section class="section" id="quiz">
+    <div class="section-kicker">
+      <span class="klabel">Check yourself</span>
+      <h2>Three questions</h2>
+    </div>
+    <p>Clear all three and session 6 gets stamped in your passport.</p>
+
+    <div class="quiz-q" data-answer="1">
+      <p class="qtext">1 · Which route hands your server raw 8 kHz mu-law call audio over a WebSocket?</p>
+      <button class="qopt" type="button">A · An Elastic SIP Trunk pointed at OpenAI's SIP address</button>
+      <button class="qopt" type="button">B · A bidirectional Twilio Media Stream opened with &lt;Connect&gt;&lt;Stream&gt;</button>
+      <button class="qopt" type="button">C · The realtime.call.incoming webhook</button>
+      <button class="qopt" type="button">D · Neither; phone audio always arrives as 24 kHz PCM</button>
+      <p class="qwhy">Twilio Media Streams send raw call audio over a WebSocket, and the format is always audio/x-mulaw at 8000 Hz, one channel. On the SIP route the realtime model handles the audio and your server only gets the webhook. 24 kHz PCM is a format the OpenAI Realtime API takes as input, not what the phone network delivers.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="3">
+      <p class="qtext">2 · What does the FCC's Declaratory Ruling FCC 24-17 cover?</p>
+      <button class="qopt" type="button">A · Every call answered by an AI agent, inbound or outbound</button>
+      <button class="qopt" type="button">B · Whether an inbound booking line may record calls</button>
+      <button class="qopt" type="button">C · HIPAA rules for transcribed patient calls</button>
+      <button class="qopt" type="button">D · Calls placed using an AI-generated voice, which count as "artificial or prerecorded voice" and need prior express consent absent an emergency or exemption</button>
+      <p class="qwhy">The ruling is about outbound calls under the TCPA. Callwell's agent answers calls patients place, so it is a different situation, but any outbound reminder calls in the agent's voice would be covered. Recording consent and HIPAA are separate questions, sourced elsewhere and still not legal advice.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="0">
+      <p class="qtext">3 · Why does a warm handoff pass a summary along with the call?</p>
+      <button class="qopt" type="button">A · So the person who picks up starts from what is already confirmed and the caller never has to start again</button>
+      <button class="qopt" type="button">B · So the agent can keep listening to the call after the transfer</button>
+      <button class="qopt" type="button">C · Because the carrier will not transfer a call without one</button>
+      <button class="qopt" type="button">D · So the receptionist can check the agent's best guesses for each field</button>
+      <p class="qwhy">The summary carries who, what they want, what is confirmed, what is open and why the agent handed over. It holds confirmed fields only, never guesses, which is why D is wrong; B and C are not what a summary is for.</p>
+    </div>
+
+    <p class="quiz-score"></p>
+  </section>
+
+  <section class="section" id="official">
+    <div class="section-kicker">
+      <span class="klabel">Sources covered</span>
+      <h2>What this session teaches, and where it came from</h2>
+    </div>
+    <div class="covered">
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">Twilio Media Streams docs (modified 2026-10) and Twilio SIP tutorial (2025-08-29)</span><span class="note">Bidirectional streams, the fixed 8 kHz mu-law format, the SIP trunk address, webhook and accept step; OpenAI's SIP guide returned 404, so route B is vendor-tutorial tier</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">OpenAI API pricing and Realtime API reference (read 2026-11-08)</span><span class="note">Realtime, live-session and transcription list prices; server_vad idle_timeout_ms range; no per-minute figure for realtime audio tokens</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">Deepgram pricing; LiveKit pipeline types (read 2026-11-08)</span><span class="note">Nova-3, Aura-2 and Voice Agent API list prices; "Less provider flexibility" as a realtime cost</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">RCFP Reporter's Recording Guide; FCC Declaratory Ruling FCC 24-17</span><span class="note">One-party floor, about 11 all-party states, stricter law on cross-state calls; AI voices under the TCPA for outbound calls. General, not legal advice</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">HIPAA and audio calls</span><span class="note">Reported tier only: the HHS page could not be read on 2026-11-08; read it at the regulator before relying on any line</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">Callwell's greeting, triggers, summary, fallbacks and cost line</span><span class="note">Constructed for teaching; modelled cost inputs are labelled and your numbers will differ</span></div>
+    </div>
+    <p class="mono" style="margin-top:14px">Every fact on this page, and its verification tier, is recorded in the course's source map.</p>
+  </section>
+
+  <section class="cheat" id="cheatsheet">
+    <h3>Session 6 cheat sheet <span>· pin this</span></h3>
+    <div class="grid-2">
+      <div class="cheat-item"><b>Two routes</b><span>Media stream: you get 8 kHz mu-law over a WebSocket. SIP: the realtime model gets the audio, you get a webhook.</span></div>
+      <div class="cheat-item"><b>Warm, not cold</b><span>Every transfer carries who, wants, confirmed, still open, why now. Confirmed fields only.</span></div>
+      <div class="cheat-item"><b>A fallback per stage</b><span>Swap a vendor in a cascade; route around a speech-to-speech provider. Silence is never a fallback.</span></div>
+      <div class="cheat-item"><b>Notices in the greeting</b><span>Automated, recorded, how to reach a person. Final wording belongs to the clinic's advisers.</span></div>
+      <div class="cheat-item"><b>Outbound is different</b><span>FCC 24-17 puts AI-voice calls you place under TCPA consent. Inbound answering is a separate case.</span></div>
+      <div class="cheat-item"><b>Cost is a formula</b><span>Speech-to-text minutes + model tokens + speech characters + telephony minutes. Date and label every input.</span></div>
+    </div>
+  </section>
+
+  <div class="callout next">
+    <span class="nx-pill">What next</span>
+    <p>Callwell's checklist ends at the launch decision. To run that decision properly, with a named owner, an evidence pack and a rollback someone has rehearsed, take <a href="https://phoebefu6.github.io/learn-agent-launch-with-phoebe/courses/b9-the-launch-gate.html">learn-agent-launch, the launch gate</a>. For everything else in the series, the full catalogue lives on the <a href="https://phoebefu6.github.io/learn-with-phoebe/">Learn with Phoebe hub</a>.</p>
+  </div>
+
+  <footer class="pagefoot">
+    <span>Session 6 of 6 · learn-voice-multimodal-agents-with-phoebe · by Phoebe Fu &nbsp;·&nbsp; 📚 <a href="https://phoebefu6.github.io/learn-with-phoebe/">Learn with Phoebe ↗</a></span>
+    <span><a href="05-evals-you-cannot-read.html">← Prev: Evals you cannot read</a> &nbsp;·&nbsp; <a href="../index.html">Course home</a></span>
+  </footer>
+
+</main>
+
+<script src="../assets/app.js?v=1"></script>
+</body>
+</html>

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- social:start -->
+<meta name="description" content="Six sessions for builders putting an agent on a phone line or giving it photos to read: cascaded against speech-to-speech pipelines, a latency waterfall computed in your browser, turn-taking measured on real conversation, images as input, evals for a conversation you cannot read, and shipping the call. Free, by Phoebe Fu.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Learn with Phoebe">
+<meta property="og:title" content="Learn Voice and Multimodal Agents with Phoebe">
+<meta property="og:description" content="Speech in, speech out, and images in the loop: latency, turn-taking, evals for a conversation you cannot read.">
+<meta property="og:url" content="https://phoebefu6.github.io/learn-voice-multimodal-agents-with-phoebe/">
+<meta property="og:image" content="https://phoebefu6.github.io/learn-voice-multimodal-agents-with-phoebe/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Learn Voice and Multimodal Agents with Phoebe">
+<meta name="twitter:description" content="Speech in, speech out, and images in the loop: latency, turn-taking, evals for a conversation you cannot read.">
+<meta name="twitter:image" content="https://phoebefu6.github.io/learn-voice-multimodal-agents-with-phoebe/assets/og-cover.png">
+<!-- social:end -->
+<title>Learn Voice and Multimodal Agents with Phoebe</title>
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+
+  .stats-row { display: flex; gap: 2.4rem; margin-top: 1.5rem; flex-wrap: wrap; }
+  .stat b { display: block; font-size: 2.1rem; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; }
+  .stat span { font-size: .72rem; opacity: 1; text-transform: uppercase; letter-spacing: .09em; font-weight: 600; }
+
+  .course-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+  .course-card {
+    border: 1px solid var(--hairline);
+    border-top: 4px solid var(--diff, var(--indigo));
+    border-radius: var(--radius);
+    padding: 1.2rem 1.3rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    text-decoration: none;
+    color: var(--ink);
+    background: #fff;
+    transition: box-shadow .15s ease, border-color .15s ease, transform .15s ease;
+    position: relative;
+  }
+  .course-card:hover { border-color: var(--indigo-soft); border-top-color: var(--diff, var(--indigo)); box-shadow: 0 8px 28px rgba(var(--shadow-rgb),.16); transform: translateY(-3px); }
+  .course-card .cicon { font-size: 1.7rem; line-height: 1; }
+  .course-card .cnum { font-size: .72rem; font-weight: 700; color: var(--indigo); text-transform: uppercase; letter-spacing: .1em; }
+  .course-card h3 { font-size: 1.05rem; font-weight: 800; line-height: 1.3; }
+  .course-card p { font-size: .85rem; color: var(--muted); flex: 1; }
+  .course-card .meta { display: flex; gap: .4rem; flex-wrap: wrap; }
+
+  .diff-legend { display: flex; gap: 1rem; margin-top: 1.6rem; font-size: .74rem; color: var(--muted); font-weight: 600; flex-wrap: wrap; }
+  .diff-legend i { display: inline-block; width: .85rem; height: .35rem; border-radius: 999px; margin-right: .35rem; vertical-align: middle; }
+
+  .paths { margin-top: 2.6rem; }
+  .paths h2 { font-size: 1.3rem; font-weight: 800; margin-bottom: .3rem; }
+  .paths .plede { color: var(--muted); font-size: .92rem; margin-bottom: .8rem; }
+  .path { display: flex; gap: .55rem; align-items: center; padding: .75rem 0; border-bottom: .5px solid var(--hairline); flex-wrap: wrap; }
+  .path:last-child { border-bottom: none; }
+  .path b { min-width: 15.5rem; font-size: .9rem; }
+  .path .pstep { background: var(--indigo-50); color: var(--indigo-deep); border-radius: 999px; padding: .16rem .68rem; font-weight: 700; font-size: .8rem; text-decoration: none; transition: all .12s ease; }
+  .path .pstep:hover { background: var(--indigo); color: #fff; }
+  .path .parr { color: var(--muted); font-weight: 700; }
+
+  .mm-section { margin-top: 1.6rem; }
+  .mm-section h2 { font-size: 1.3rem; font-weight: 800; margin-bottom: .2rem; }
+  .mm-section .mm-lede { color: var(--muted); font-size: .92rem; margin-bottom: .4rem; }
+  .mm-wrap { border: 1px solid var(--hairline); border-radius: var(--radius); background: linear-gradient(180deg,#fff,var(--indigo-50)); padding: .6rem; overflow-x: auto; }
+  .mm-svg { width: 100%; height: auto; display: block; max-width: 60rem; margin: 0 auto; min-width: 34rem; }
+  .mm-link { cursor: pointer; text-decoration: none; }
+  .mm-node rect { transition: opacity .15s ease, filter .15s ease; }
+  .mm-node text { pointer-events: none; }
+  .mm-link:hover .mm-node rect { filter: brightness(1.06); }
+  .mm-edge { transition: opacity .15s ease; }
+
+  .not-this { border: 1px solid var(--hairline); border-left: 4px solid var(--clay); border-radius: var(--radius); background: #fff; padding: 1.1rem 1.3rem; margin-top: 1.2rem; }
+  .not-this h3 { font-size: .95rem; font-weight: 800; margin-bottom: .5rem; }
+</style>
+</head>
+<body>
+<header class="masthead">
+  <div class="wrap">
+    <div class="eyebrow">Learn with Phoebe · AI</div>
+    <h1>Learn <span class="accent">Voice and Multimodal Agents</span> with Phoebe</h1>
+    <p class="sub">Speech in, speech out, and images in the loop: latency, turn-taking, evals for a conversation you cannot read. Six sessions for builders who have shipped a text agent and now have to put it on a phone line or hand it a photo. One constructed running case, a clinic's booking line, and one bench: a latency waterfall computed in your browser, with the cost of cutting corners measured on 24 real two-person conversations.</p>
+    <div class="stats-row">
+      <div class="stat"><b data-count="6">6</b><span>sessions</span></div>
+      <div class="stat"><b data-count="24">24</b><span>real dialogues on the bench</span></div>
+      <div class="stat"><b data-count="3520">3,520</b><span>real pauses timed</span></div>
+      <div class="stat"><b data-count="800">800</b><span>ms, Callwell's target</span></div>
+      <div class="stat"><b data-count="45">45</b><span>min per session</span></div>
+    </div>
+  </div>
+</header>
+<main class="wrap">
+  <section class="section">
+    <div class="paths" style="margin-top:0">
+      <h2>The six sessions 🧭 <span style="font-size:.85rem;font-weight:600;color:var(--muted)">· from the first call-flow map to go-live</span></h2>
+      <p class="plede">The running case is <strong>Callwell, a constructed clinic booking line</strong>. Three invented sites, one phone number. Callers speak; some text a photo of a referral letter; they expect an answer about as fast as a person would give one; some interrupt. The text chatbot already books appointments through the same system. Callwell, its sites, clinicians, callers and letter are invented for teaching, and every page says so.</p>
+    </div>
+    <div class="course-grid">
+      <a class="course-card" href="courses/01-the-voice-pipeline.html" style="--diff:#34D399">
+        <span class="cicon">🎙️</span>
+        <span class="cnum">Session 1 · foundations</span>
+        <h3>The voice pipeline: cascaded or speech-to-speech</h3>
+        <p>What a phone call adds to the agent loop you already built, the two ways to wire a voice onto it drawn as mechanisms, why streaming decides most of the second, and Callwell's call flow mapped end to end.</p>
+        <span class="meta"><span class="pill amber">▶ Start here</span></span>
+      </a>
+      <a class="course-card" href="courses/02-the-latency-waterfall.html" style="--diff:#FBBF24">
+        <span class="cicon">⏱️</span>
+        <span class="cnum">Session 2 · bench night</span>
+        <h3>The latency waterfall: where the second goes</h3>
+        <p>Four published answers to fast enough, then the bench: a waterfall from the caller's last word to the first syllable, computed live, with a tool-call break button and a cut-the-wait trap measured on real pauses.</p>
+        <span class="meta"><span class="pill amber">★ the bench</span></span>
+      </a>
+      <a class="course-card" href="courses/03-turn-taking.html" style="--diff:#FBBF24">
+        <span class="cicon">🔁</span>
+        <span class="cnum">Session 3 · core</span>
+        <h3>Turn-taking: when to speak, when to stop</h3>
+        <p>Voice activity detection, silence timers against semantic turn detection, barge-in and truncation that keep the context honest, backchannels, and end-of-turn settings tuned on real pauses.</p>
+        <span class="meta"><span class="pill">who speaks next</span></span>
+      </a>
+      <a class="course-card" href="courses/04-images-in-the-loop.html" style="--diff:#FB923C">
+        <span class="cicon">📷</span>
+        <span class="cnum">Session 4 · deeper</span>
+        <h3>Images in the loop: reading what callers send</h3>
+        <p>Photos and documents as input: OCR against a vision model, extraction to a schema, confidence and asking back. An invented referral letter, read field by field. No image generation.</p>
+        <span class="meta"><span class="pill">vision as input</span></span>
+      </a>
+      <a class="course-card" href="courses/05-evals-you-cannot-read.html" style="--diff:#FB923C">
+        <span class="cicon">🧪</span>
+        <span class="cnum">Session 5 · deeper</span>
+        <h3>Evals for a conversation you cannot read</h3>
+        <p>Task success first, word error rate computed for real, latency and interruption measures, judging audio against transcripts, and simulated callers.</p>
+        <span class="meta"><span class="pill">measure the call</span></span>
+      </a>
+      <a class="course-card" href="courses/06-shipping-the-call.html" style="--diff:#F87171">
+        <span class="cicon">📞</span>
+        <span class="cnum">Session 6 · ship it</span>
+        <h3>Shipping the call: phones, handoffs and consent</h3>
+        <p>Telephony at concept level, fallbacks and the warm handoff to a person, recording and AI-voice notices from sourced general rules, cost per minute, and Callwell's go-live checklist.</p>
+        <span class="meta"><span class="pill amber">🔒 go-live</span></span>
+      </a>
+    </div>
+    <div class="diff-legend">
+      <span><i style="background:#34D399"></i>foundations</span>
+      <span><i style="background:#FBBF24"></i>core and bench</span>
+      <span><i style="background:#FB923C"></i>deeper</span>
+      <span><i style="background:#F87171"></i>ship it</span>
+    </div>
+  </section>
+  <section class="section">
+    <div class="paths" style="margin-top:0">
+      <h2>Your passport 🎫</h2>
+      <p class="plede">Clear all three quiz questions in a session and it gets stamped. Six stamps means you can choose a voice pipeline with reasons, budget and read a latency waterfall, tune turn detection on real pauses, read a document photo into a schema, evaluate a call you cannot read, and ship it with a door to a human. Stamps live in this browser only.</p>
+    </div>
+    <div class="pp-strip"></div>
+  </section>
+  <section class="section">
+    <div class="not-this">
+      <h3>What this is not, so you land in the right place 🧭</h3>
+      <table class="clean">
+        <tr><th>If your question is</th><th>Go here instead</th></tr>
+        <tr><td>How does the agent loop itself work: tools, memory, guardrails?</td><td><a href="https://phoebefu6.github.io/learn-ai-agents-with-phoebe/courses/b1-agent-loop.html">AI Agents, the agent loop ↗</a></td></tr>
+        <tr><td>How do I build a golden set or an LLM judge?</td><td><a href="https://phoebefu6.github.io/learn-ai-evals-with-phoebe/courses/b2-golden-set.html">AI Evals, golden sets ↗</a></td></tr>
+        <tr><td>How do I trace spans and time each step of an agent?</td><td><a href="https://phoebefu6.github.io/learn-ai-observability-with-phoebe/courses/b4-cost-and-latency-per-span.html">AI Observability, latency per span ↗</a></td></tr>
+        <tr><td>How do I generate images, voices or video, and who owns them?</td><td><a href="https://phoebefu6.github.io/learn-ai-media-with-phoebe/">AI Media ↗</a></td></tr>
+        <tr><td>What gate should an agent pass before it launches?</td><td><a href="https://phoebefu6.github.io/learn-agent-launch-with-phoebe/courses/b9-the-launch-gate.html">Agent Launch, the launch gate ↗</a></td></tr>
+        <tr><td><strong>My agent works in text. Now it has to listen, talk, or read a photo someone sends it.</strong></td><td><strong>you are in the right place</strong></td></tr>
+      </table>
+      <p style="margin-top:.7rem;font-size:.86rem;color:var(--muted)"><strong>Only what changes when the channel is speech or images.</strong> The agent loop, eval basics, tracing, launch gates and media generation are taught next door and linked from here rather than repeated.</p>
+    </div>
+  </section>
+  <section class="section">
+    <div class="paths">
+      <h2>Choose your path 🗺️</h2>
+      <p class="plede">Three doors into the same build: the agent you already trust, on a new channel.</p>
+      <div class="path"><b>🎧 Our bot is going on the phone</b>
+        <a class="pstep" href="courses/01-the-voice-pipeline.html">1</a><span class="parr">→</span>
+        <a class="pstep" href="courses/02-the-latency-waterfall.html">2</a><span class="parr">→</span>
+        <a class="pstep" href="courses/03-turn-taking.html">3</a><span class="parr">→</span>
+        <a class="pstep" href="courses/06-shipping-the-call.html">6</a>
+        <span style="font-size:.82rem;color:var(--muted)">pipeline, budget, turns, go-live</span>
+      </div>
+      <div class="path"><b>📷 Callers send us photos</b>
+        <a class="pstep" href="courses/01-the-voice-pipeline.html">1</a><span class="parr">→</span>
+        <a class="pstep" href="courses/04-images-in-the-loop.html">4</a><span class="parr">→</span>
+        <a class="pstep" href="courses/05-evals-you-cannot-read.html">5</a>
+        <span style="font-size:.82rem;color:var(--muted)">pipeline, read the document, measure it</span>
+      </div>
+      <div class="path"><b>🧭 The whole build</b>
+        <a class="pstep" href="courses/01-the-voice-pipeline.html">1</a><span class="parr">→</span>
+        <a class="pstep" href="courses/02-the-latency-waterfall.html">2</a><span class="parr">→</span>
+        <a class="pstep" href="courses/03-turn-taking.html">3</a><span class="parr">→</span>
+        <a class="pstep" href="courses/04-images-in-the-loop.html">4</a><span class="parr">→</span>
+        <a class="pstep" href="courses/05-evals-you-cannot-read.html">5</a><span class="parr">→</span>
+        <a class="pstep" href="courses/06-shipping-the-call.html">6</a>
+        <span style="font-size:.82rem;color:var(--muted)">from the call-flow map to the go-live checklist</span>
+      </div>
+    </div>
+  </section>
+  <section class="section">
+    <div class="paths" style="margin-top:0">
+      <h2>What is honest here 🧾</h2>
+      <p class="plede">Voice AI changes monthly and its numbers travel without their sources. Each claim on these pages carries its status, and every product name, default and price is dated 2026-11-08.</p>
+    </div>
+    <table class="clean">
+      <tr><th>Claim</th><th>Status</th></tr>
+      <tr><td>False cut-in rates for a silence threshold, pause and gap shares</td><td><strong>Really measured</strong> in your browser from 24 no-eye-contact dialogues of the HCRC Map Task Corpus (CC BY 4.0 per its download page); silence durations only, no audio, no words</td></tr>
+      <tr><td>Every latency total on the bench</td><td><strong>Computed</strong> from dated vendor targets and labelled modelled inputs; it measures no product</td></tr>
+      <tr><td>Word error rates in session 5</td><td><strong>Real arithmetic</strong> on constructed Callwell transcripts</td></tr>
+      <tr><td>"Humans respond in 200 ms"</td><td><strong>True as an average, misleading as a target.</strong> Stivers et al. (2009): mean +208 ms for answers to yes/no questions in ten languages; people get there by planning while the other person talks</td></tr>
+      <tr><td>"500 ms is the magic number"; "callers hang up after N seconds"</td><td><strong>No primary source found</strong> on 2026-11-08; attributed as opinion or left out</td></tr>
+      <tr><td>Model names, defaults, latency targets, prices</td><td><strong>Vendor-reported and dated.</strong> Re-verify the changelog before you rely on any of them</td></tr>
+      <tr><td>Callwell, its sites, clinicians, callers, transcripts and referral letter</td><td><strong>Constructed,</strong> for teaching; no real patient data</td></tr>
+    </table>
+  </section>
+  <section class="section mm-section">
+    <h2>The knowledge map 🧠</h2>
+    <p class="mm-lede">The whole path at a glance - hover a session to spotlight its concepts, click any node to jump in.</p>
+    <div class="mm-wrap"><div id="mindmap"></div></div>
+  </section>
+  <footer class="pagefoot">
+    <span>learn-voice-multimodal-agents-with-phoebe · by Phoebe Fu &nbsp;·&nbsp; 📚 <a href="https://phoebefu6.github.io/learn-with-phoebe/">Learn with Phoebe ↗</a></span>
+    <span>Neighbours on the shelf: <a href="https://phoebefu6.github.io/learn-ai-agents-with-phoebe/">AI Agents ↗</a> &nbsp;·&nbsp; <a href="https://phoebefu6.github.io/learn-ai-evals-with-phoebe/">AI Evals ↗</a> &nbsp;·&nbsp; <a href="https://phoebefu6.github.io/learn-ai-observability-with-phoebe/">AI Observability ↗</a></span>
+  </footer>
+</main>
+<script>
+window.MINDMAP_DATA = {
+ "title": "Voice +\nMultimodal",
+ "centerColor": "#064E42",
+ "sessions": [
+  {
+   "label": "Voice\npipeline",
+   "href": "courses/01-the-voice-pipeline.html",
+   "color": "#34D399",
+   "concepts": [
+    {
+     "label": "What voice adds",
+     "href": "courses/01-the-voice-pipeline.html#part-1"
+    },
+    {
+     "label": "Cascaded vs realtime",
+     "href": "courses/01-the-voice-pipeline.html#part-2"
+    },
+    {
+     "label": "Stream every stage",
+     "href": "courses/01-the-voice-pipeline.html#part-3"
+    }
+   ]
+  },
+  {
+   "label": "Latency\nwaterfall",
+   "href": "courses/02-the-latency-waterfall.html",
+   "color": "#FBBF24",
+   "concepts": [
+    {
+     "label": "Four latency targets",
+     "href": "courses/02-the-latency-waterfall.html#part-1"
+    },
+    {
+     "label": "The critical path",
+     "href": "courses/02-the-latency-waterfall.html#part-2"
+    },
+    {
+     "label": "The cut-the-wait trap",
+     "href": "courses/02-the-latency-waterfall.html#part-3"
+    }
+   ]
+  },
+  {
+   "label": "Turn-\ntaking",
+   "href": "courses/03-turn-taking.html",
+   "color": "#FBBF24",
+   "concepts": [
+    {
+     "label": "Silence vs semantic",
+     "href": "courses/03-turn-taking.html#part-1"
+    },
+    {
+     "label": "Barge-in and truncate",
+     "href": "courses/03-turn-taking.html#part-2"
+    },
+    {
+     "label": "Tune on real pauses",
+     "href": "courses/03-turn-taking.html#part-3"
+    }
+   ]
+  },
+  {
+   "label": "Images in\nthe loop",
+   "href": "courses/04-images-in-the-loop.html",
+   "color": "#FB923C",
+   "concepts": [
+    {
+     "label": "OCR or vision model",
+     "href": "courses/04-images-in-the-loop.html#part-1"
+    },
+    {
+     "label": "Extract to a schema",
+     "href": "courses/04-images-in-the-loop.html#part-2"
+    },
+    {
+     "label": "Confidence, ask back",
+     "href": "courses/04-images-in-the-loop.html#part-3"
+    }
+   ]
+  },
+  {
+   "label": "Evals you\ncannot read",
+   "href": "courses/05-evals-you-cannot-read.html",
+   "color": "#FB923C",
+   "concepts": [
+    {
+     "label": "WER, computed",
+     "href": "courses/05-evals-you-cannot-read.html#part-1"
+    },
+    {
+     "label": "Task success over WER",
+     "href": "courses/05-evals-you-cannot-read.html#part-2"
+    },
+    {
+     "label": "Simulated callers",
+     "href": "courses/05-evals-you-cannot-read.html#part-3"
+    }
+   ]
+  },
+  {
+   "label": "Shipping\nthe call",
+   "href": "courses/06-shipping-the-call.html",
+   "color": "#F87171",
+   "concepts": [
+    {
+     "label": "Phones and SIP",
+     "href": "courses/06-shipping-the-call.html#part-1"
+    },
+    {
+     "label": "Handoff to a human",
+     "href": "courses/06-shipping-the-call.html#part-2"
+    },
+    {
+     "label": "Consent and cost",
+     "href": "courses/06-shipping-the-call.html#part-3"
+    }
+   ]
+  }
+ ]
+};
+</script>
+<script src="assets/mindmap.js?v=1"></script>
+<script src="assets/app.js?v=1"></script>
+</body>
+</html>

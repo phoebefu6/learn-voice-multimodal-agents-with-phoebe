@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- social:start -->
+<meta name="description" content="Session 1 of 6. What changes when your agent answers the phone: time, turns and a caller who cannot scroll back. The cascaded pipeline (speech to text, a language model, text to speech) against a speech-to-speech model, drawn as mechanisms; streaming at every stage; and Callwell's call flow mapped end to end.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Learn with Phoebe">
+<meta property="og:title" content="The voice pipeline: cascaded or speech-to-speech - learn voice and multimodal agents with phoebe">
+<meta property="og:description" content="Session 1 of 6. Two ways to put a voice on an agent, what each costs in latency, control and observability, and why streaming decides most of it.">
+<meta property="og:url" content="https://phoebefu6.github.io/learn-voice-multimodal-agents-with-phoebe/courses/01-the-voice-pipeline.html">
+<meta property="og:image" content="https://phoebefu6.github.io/learn-voice-multimodal-agents-with-phoebe/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="The voice pipeline: cascaded or speech-to-speech - learn voice and multimodal agents with phoebe">
+<meta name="twitter:description" content="Session 1 of 6. Cascaded against speech-to-speech, streaming at every stage, and a call flow mapped end to end.">
+<meta name="twitter:image" content="https://phoebefu6.github.io/learn-voice-multimodal-agents-with-phoebe/assets/og-cover.png">
+<!-- social:end -->
+<title>Session 1 · The voice pipeline: cascaded or speech-to-speech - learn voice and multimodal agents with phoebe</title>
+<link rel="stylesheet" href="../assets/style.css?v=2">
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="wrap">
+    <span class="crumb"><a href="../index.html">learn-voice-multimodal-agents-with-phoebe</a> / Session 1 of 6</span>
+    <button class="btn" id="toggle-all" type="button">Expand all</button>
+    <button class="btn primary" id="zoom-toggle" type="button">Projector zoom: off</button>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="eyebrow">Learn Voice and Multimodal Agents with Phoebe · Session 1 of 6</div>
+    <h1>The voice <span class="accent">pipeline</span>: cascaded or speech-to-speech</h1>
+    <p class="sub">You have shipped a text agent. It reads a message, thinks, calls a tool, writes a reply, and nobody minds if that takes four seconds, because the user is looking at a typing indicator. Put the same agent on a phone line and three things arrive that text never had: a clock the caller can hear, a question about whose turn it is, and a person who cannot scroll back to reread what you said. Tonight we draw the two ways to wire a voice onto an agent, a chain of three models or one model that hears and speaks, and see what each costs in latency, control and observability. Then we map one booking line end to end.</p>
+    <div class="chip-row">
+      <span class="chip level">🟢 Foundations</span>
+      <span class="chip audience">Builders who shipped a text agent</span>
+      <span class="chip audience">No code tonight, one call-flow map</span>
+      <span class="chip time">45 min</span>
+    </div>
+    <div class="agenda">
+      <span class="a1" style="flex:1">0-3 · Welcome</span>
+      <span class="a2" style="flex:4">3-18 · What changes, two pipelines, streaming</span>
+      <span class="a3" style="flex:5">18-40 · Build-along: map Callwell's call flow</span>
+      <span class="a4" style="flex:1">40-45 · Q&amp;A</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="section" id="intro">
+    <div class="section-kicker">
+      <span class="klabel">Part 0</span>
+      <h2>Where we start</h2>
+    </div>
+    <p class="lede">The running case is a constructed Callwell example. Callwell is an invented clinic group with three sites, Riverside, Northgate and Harbour, and one phone number for bookings. Today a receptionist answers it. The clinic wants an agent on that line: callers say what they need, some text a photo of a referral letter from their doctor, everyone expects an answer about as fast as a person would give one, and some of them interrupt. The text chatbot on Callwell's website already books appointments through the same booking system. Everything in the six sessions is a decision you will face when you put your own agent on a call.</p>
+
+    <div class="legend">
+      <span class="pill">🎫 Clear all three quiz questions to stamp your passport</span>
+      <span class="pill">Live = presented in the 45 minutes</span>
+      <span class="pill">Self-study = the full depth, after class</span>
+      <span class="pill">★ Build-along = map it yourself</span>
+    </div>
+
+    <div class="callout win">
+      <p><strong>★ What you walk out with tonight.</strong> A plain answer to "cascaded or speech-to-speech?" for your own product, with the three costs that decide it; a list of what has to stream for a reply to arrive in under a second; and a one-page call-flow map of a real-shaped booking line, with every hand-off, the photo path and the door to a human marked on it.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-1">
+    <div class="section-kicker">
+      <span class="klabel">Part 1 · covers what the voice channel adds to an agent</span>
+      <h2>Same agent, new channel</h2>
+      <span class="tag concept">4 min live</span>
+    </div>
+    <p class="lede">The agent loop does not change when the channel does: the model still reads context, decides, calls tools and writes an answer, and your guardrails still apply. The loop, tools and memory are taught in <a href="https://phoebefu6.github.io/learn-ai-agents-with-phoebe/courses/b1-agent-loop.html">learn-ai-agents, the agent loop</a>, and nothing here repeats them. What changes is everything around the loop: something has to listen, decide the caller has finished, speak, and stop speaking the moment the caller cuts in.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The text agent loop drawn as an unchanged box in the middle. Around it, the voice channel adds a listen stage before it (stream the audio, decide the turn is over) and a speak stage after it (stream the reply as audio, stop when the caller talks). A return arrow under the boxes carries the reply to the caller, labelled: the first syllable has to arrive in about a second. A dashed coral arrow over the top runs from the caller to the speak stage, labelled barge-in: the caller talks over the reply.">
+        <defs>
+          <filter id="v1aSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="11" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="v1aHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#0B8470" stroke-width="1" opacity=".5"/></pattern>
+          <marker id="v1aAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#10231F" stroke-width="1.6" stroke-linecap="round"/></marker>
+          <marker id="v1aAc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#C2412D" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .v1aH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v1aL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v1aS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v1aB { font: 800 11px Inter, sans-serif; fill: #8F2C1C; }
+          .v1aA { font: 700 11px Inter, sans-serif; fill: #064E42; }
+          .v1aN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v1aH" x="30" y="24">THE LOOP YOU ALREADY BUILT, AND WHAT A PHONE CALL WRAPS AROUND IT</text>
+
+        <g filter="url(#v1aSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="66" cy="132" r="15" fill="#FFFFFF"/>
+          <path d="M66 147 L66 188 M66 160 L48 176 M66 160 L84 176 M66 188 L54 212 M66 188 L78 212"/>
+          <path d="M92 150 L126 150" marker-end="url(#v1aAr)"/>
+          <rect x="132" y="106" width="196" height="90" rx="10" transform="rotate(-0.6 230 151)" fill="#FFFFFF"/>
+          <path d="M332 150 L350 150" marker-end="url(#v1aAr)"/>
+          <rect x="356" y="106" width="176" height="90" rx="10" transform="rotate(0.4 444 151)" fill="url(#v1aHc)"/>
+          <path d="M536 150 L554 150" marker-end="url(#v1aAr)"/>
+          <rect x="560" y="106" width="196" height="90" rx="10" transform="rotate(0.6 658 151)" fill="#FFFFFF"/>
+          <path d="M658 200 C640 262 300 268 80 222" marker-end="url(#v1aAr)"/>
+          <path d="M80 112 C200 60 560 62 650 100" stroke="#C2412D" stroke-dasharray="6 5" marker-end="url(#v1aAc)"/>
+        </g>
+
+        <text class="v1aA" x="148" y="128">LISTEN</text>
+        <text class="v1aL" x="148" y="150">stream the audio in</text>
+        <text class="v1aS" x="148" y="168">decide the turn is over</text>
+        <text class="v1aA" x="372" y="128">YOUR AGENT LOOP</text>
+        <text class="v1aL" x="372" y="150">tools, memory, rules</text>
+        <text class="v1aS" x="372" y="168">unchanged</text>
+        <text class="v1aA" x="576" y="128">SPEAK</text>
+        <text class="v1aL" x="576" y="150">stream the reply out</text>
+        <text class="v1aS" x="576" y="168">stop when they talk</text>
+        <text class="v1aL" x="66" y="234" text-anchor="middle">caller</text>
+        <text class="v1aB" x="370" y="62" text-anchor="middle">barge-in: the caller talks over the reply (session 3)</text>
+        <text class="v1aA" x="370" y="282" text-anchor="middle">the first syllable has to arrive in about a second (session 2)</text>
+        <text class="v1aS" x="790" y="146">no screen,</text>
+        <text class="v1aS" x="790" y="162">no scrollback</text>
+
+        <text class="v1aN" x="30" y="306">The middle box is the one you already trust. Every new failure in a voice agent lives in the two boxes either side of it.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - voice adds a listen stage, a speak stage and two arrows text never had: the clock under the boxes and the interruption over them</figcaption>
+    </figure>
+
+    <details class="card" open>
+      <summary><span class="mode live">Live</span>Three things text never had<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p><strong>A clock the caller can hear.</strong> In a chat window, silence is a typing indicator. On a call, silence is dead air, and people start talking again into it. Conversation research puts the typical gap between one person finishing and the next starting at around 200 milliseconds (Stivers et al. 2009 report a mean of +208 ms across ten languages). No agent hits that; session 2 measures how far off a real build is and where the time goes.</p>
+        <p><strong>A question about whose turn it is.</strong> Text has a send button. Speech has pauses, and a pause in the middle of "my date of birth is the fourteenth of... March" looks exactly like a finished sentence to a microphone. Session 3 is entirely about this.</p>
+        <p><strong>A listener who cannot scroll.</strong> A three-paragraph answer with a bulleted list is fine on a screen and unusable in an ear. Replies have to be short, ordered and confirmable, which changes how you prompt the same agent.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>Phone audio is not studio audio<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>A phone call reaches your server as narrowband audio. Twilio's Media Streams documentation states the format plainly: the encoding is always <code>audio/x-mulaw</code>, the sample rate is always 8000, one channel. That is G.711 mu-law, the format of the public phone network for decades. A browser microphone gives you far more: the OpenAI Realtime API, for instance, takes PCM at 24 kHz mono, and also accepts G.711 mu-law and A-law directly so a phone stream does not need resampling.</p>
+        <p>Two consequences for Callwell. First, speech recognition accuracy on a phone line is lower than on a headset, so any accuracy figure measured on clean audio is an upper bound. Second, the format conversion is a stage: if you resample, it is one more thing in the timing trace. Session 6 covers how the call reaches your server at all.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>OpenAI's own advice is about the wait, not the words.</strong> OpenAI's voice agents guide (read 2026-11-08) tells builders to "measure how long callers wait for a useful spoken answer", to compare the median and the 95th percentile across similar calls, and to measure an acknowledgement such as "I'm checking" separately from the answer the caller actually needs. That is a latency discipline text agents rarely need, and it is the first thing a voice agent gets judged on.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-2">
+    <div class="section-kicker">
+      <span class="klabel">Part 2 · covers cascaded against speech-to-speech</span>
+      <h2>Two pipelines, drawn as mechanisms</h2>
+      <span class="tag concept">6 min live</span>
+    </div>
+    <p class="lede">There are two ways to wire the listen and speak stages. A <strong>cascaded</strong> pipeline (OpenAI calls it chained) strings three models together: speech recognition turns audio into text, a language model turns that text into a reply, and speech synthesis turns the reply into audio. A <strong>speech-to-speech</strong> model, sold as a realtime model, takes audio in and gives audio out from one model. The difference that matters is what you can see at each hand-off.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Two pipelines. Top, cascaded: audio in, a speech recognition box, a transcript you can log, a language model box, reply text you can check, a speech synthesis box, audio out. Bottom, speech-to-speech: audio in, one wide model box that hears, reasons and speaks, audio out; tone and pauses reach the model, but there is no text hand-off to inspect, drawn as a hatched coral interior.">
+        <defs>
+          <filter id="v1bSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="23" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="v1bHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#C2412D" stroke-width="1" opacity=".5"/></pattern>
+          <marker id="v1bAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#10231F" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .v1bH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v1bL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v1bS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v1bB { font: 800 11px Inter, sans-serif; fill: #8F2C1C; }
+          .v1bA { font: 700 11px Inter, sans-serif; fill: #064E42; }
+          .v1bN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v1bH" x="30" y="24">TWO WAYS TO PUT A VOICE ON AN AGENT: LOOK AT THE HAND-OFFS</text>
+        <text class="v1bA" x="30" y="54">CASCADED (CHAINED)</text>
+        <text class="v1bA" x="30" y="200">SPEECH-TO-SPEECH (REALTIME)</text>
+
+        <g filter="url(#v1bSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M44 100 q8 -14 16 0 q8 14 16 0 q8 -14 16 0" stroke="#F07A63"/>
+          <path d="M98 100 L126 100" marker-end="url(#v1bAr)"/>
+          <rect x="132" y="72" width="150" height="56" rx="10" transform="rotate(-0.8 207 100)" fill="#FFFFFF"/>
+          <path d="M286 100 L380 100" marker-end="url(#v1bAr)"/>
+          <rect x="314" y="110" width="40" height="30" rx="3" transform="rotate(-3 334 125)" fill="#E8F6F2"/>
+          <rect x="386" y="72" width="150" height="56" rx="10" transform="rotate(0.6 461 100)" fill="#FFFFFF"/>
+          <path d="M540 100 L634 100" marker-end="url(#v1bAr)"/>
+          <rect x="568" y="110" width="40" height="30" rx="3" transform="rotate(3 588 125)" fill="#E8F6F2"/>
+          <rect x="640" y="72" width="150" height="56" rx="10" transform="rotate(-0.6 715 100)" fill="#FFFFFF"/>
+          <path d="M794 100 L818 100" marker-end="url(#v1bAr)"/>
+          <path d="M44 246 q8 -14 16 0 q8 14 16 0 q8 -14 16 0" stroke="#F07A63"/>
+          <path d="M98 246 L126 246" marker-end="url(#v1bAr)"/>
+          <rect x="132" y="216" width="658" height="60" rx="12" transform="rotate(-0.3 461 246)" fill="url(#v1bHc)"/>
+          <path d="M794 246 L818 246" marker-end="url(#v1bAr)"/>
+        </g>
+
+        <text class="v1bL" x="207" y="98" text-anchor="middle">speech to text</text>
+        <text class="v1bS" x="207" y="114" text-anchor="middle">ASR, streaming</text>
+        <text class="v1bL" x="461" y="98" text-anchor="middle">language model</text>
+        <text class="v1bS" x="461" y="114" text-anchor="middle">text in, text out</text>
+        <text class="v1bL" x="715" y="98" text-anchor="middle">text to speech</text>
+        <text class="v1bS" x="715" y="114" text-anchor="middle">TTS, streaming</text>
+        <text class="v1bS" x="334" y="160" text-anchor="middle">transcript you can log</text>
+        <text class="v1bS" x="588" y="160" text-anchor="middle">reply you can check</text>
+        <text class="v1bS" x="68" y="126" text-anchor="middle">audio in</text>
+        <text class="v1bS" x="820" y="126" text-anchor="middle">out</text>
+
+        <rect x="300" y="228" width="322" height="38" rx="8" fill="#FFFFFF"/>
+        <text class="v1bL" x="461" y="244" text-anchor="middle">one model hears, reasons and speaks</text>
+        <text class="v1bS" x="461" y="259" text-anchor="middle">no text hand-off in the middle</text>
+        <text class="v1bS" x="68" y="272" text-anchor="middle">audio in</text>
+        <text class="v1bS" x="820" y="272" text-anchor="middle">out</text>
+        <text class="v1bB" x="461" y="298" text-anchor="middle">gains: tone and pauses reach the model, fewer hand-offs</text>
+
+        <text class="v1bN" x="30" y="326">LiveKit, read 2026-11-08: "For most production agents, a cascaded pipeline is the right default."</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - the cascade leaves text on the table at every hand-off; the single model takes the hand-offs away, and the text with them</figcaption>
+    </figure>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Cascaded: three models you can each see and swap<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>LiveKit's documentation calls the cascaded pipeline "the right default" for most production agents, and names what it costs: "Each stage adds latency", and because speech recognition produces text, "prosody and emotional cues in the user's speech don't reach the LLM". A caller who says "fine" through gritted teeth reaches the model as the word fine.</p>
+        <p>What it buys is visibility. OpenAI's voice agents guide recommends the chained path "when you want to inspect or transform text between speech recognition" and the reply, and when "each stage needs to be visible or replaceable". At Callwell that matters twice: the transcript is a record of what the caller asked for, and the reply text can be checked against the booking before a word of it is spoken. You can also change the speech recogniser without touching the agent.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Speech-to-speech: one model, fewer hand-offs, less to read<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>A realtime model "consumes and produces speech directly, in a single model" (LiveKit). The gain LiveKit names is "Lower end-to-end latency: Combining stages into one model removes the inter-stage hand-offs", and it hears tone, laughter and hesitation that a transcript drops. OpenAI's guide describes the same path as one model that interprets audio, decides what to do and responds in speech, with the session handling turns, tools and interruptions.</p>
+        <p>The costs LiveKit lists are the ones a clinic feels: "Delayed transcripts: Realtime models don't produce interim transcripts", "Less provider flexibility" because one provider owns the whole speech path, and "Harder to audit: Without a text trail at every stage, debugging and compliance review take more work." Session 2 puts numbers on the latency claim, and finds it depends on the inputs more than the label.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>The hybrid, and the frameworks that wire either one<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>LiveKit documents a third shape: a realtime model for understanding, paired with a separate text-to-speech voice, "to keep realtime speech understanding and add scripted speech". It is the answer when you want the model's ear but need a specific voice or exact wording for, say, a legal notice.</p>
+        <p>You rarely wire any of this by hand. LiveKit Agents and Pipecat are open-source frameworks that run either pipeline. Pipecat models everything as frames flowing through processors; its system frames, which carry events such as "the user started speaking", are high priority and "interruptions do not discard them". The DeepLearning.AI short course "Building AI Voice Agents for Production", made with LiveKit and RealAvatar, walks the same architecture in seven video lessons, one of them on optimising latency. Watch it for the code; the certificate stays theirs.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>Two vendors, two framings, one trade.</strong> LiveKit's comparison table rates cascaded end-to-end latency "Moderate" and both realtime options "Fastest", and still recommends cascaded as the default. OpenAI sells the realtime model and still documents the chained path for teams that need to inspect the text. Neither is hedging: they are telling you the decision is about control and audit, with latency as the tiebreaker you can engineer.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-3">
+    <div class="section-kicker">
+      <span class="klabel">Part 3 · covers streaming at every stage</span>
+      <h2>Streaming decides most of the second</h2>
+      <span class="tag concept">5 min live</span>
+    </div>
+    <p class="lede">Whichever pipeline you pick, the single biggest latency decision is whether each stage streams: starts handing on its output before it has finished. A recogniser that streams has most of the transcript before the caller stops. A language model that streams hands its first words to the voice while it is still writing the rest. A voice that streams starts playing the first syllable while it synthesises the second sentence. Without streaming, every stage waits for the whole output of the one before.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Before and after. Left panel, nothing streams: listen, transcribe, think and speak run one after another, and the caller hears the first syllable at 2,725 ms. Right panel, everything streams: transcribing and thinking start while the end-of-turn wait is still running, and the first syllable arrives at 800 ms. Both panels share one time scale.">
+        <defs>
+          <filter id="v1cSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="37" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <style>
+          .v1cH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v1cL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v1cS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v1cB { font: 800 11px Inter, sans-serif; fill: #8F2C1C; }
+          .v1cV { font: 800 18px Inter, sans-serif; fill: #064E42; }
+          .v1cR { font: 800 18px Inter, sans-serif; fill: #991B1B; }
+          .v1cN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v1cH" x="30" y="24">SAME CALLWELL REPLY, SAME STAGE TIMES: ONLY STREAMING CHANGES</text>
+
+        <g filter="url(#v1cSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="40" y="44" width="390" height="200" rx="12" transform="rotate(-0.3 235 144)" fill="#FEF2F2" stroke="#FCA5A5"/>
+          <rect x="450" y="44" width="390" height="200" rx="12" transform="rotate(0.3 645 144)" fill="#E8F6F2" stroke="#0B8470"/>
+        </g>
+        <rect x="159" y="96" width="46" height="16" rx="3" fill="#C3D5D0"/>
+        <rect x="206" y="122" width="32" height="16" rx="3" fill="#0B8470"/>
+        <rect x="238" y="148" width="109" height="16" rx="3" fill="#0B8470"/>
+        <rect x="347" y="174" width="46" height="16" rx="3" fill="#0B8470"/>
+        <rect x="569" y="96" width="46" height="16" rx="3" fill="#C3D5D0"/>
+        <rect x="569" y="122" width="32" height="16" rx="3" fill="#A8DCD1"/>
+        <rect x="569" y="148" width="35" height="16" rx="3" fill="#A8DCD1"/>
+        <rect x="616" y="174" width="9" height="16" rx="3" fill="#0B8470"/>
+
+        <text class="v1cB" x="58" y="70">✗ nothing streams</text>
+        <text class="v1cL" x="58" y="108">listen</text>
+        <text class="v1cL" x="58" y="134">transcribe</text>
+        <text class="v1cL" x="58" y="160">think</text>
+        <text class="v1cL" x="58" y="186">speak</text>
+        <text class="v1cR" x="58" y="226">2,725 ms</text>
+        <text class="v1cS" x="160" y="226">each stage waits for the last</text>
+
+        <text class="v1cB" x="468" y="70">✓ every stage streams</text>
+        <text class="v1cL" x="468" y="108">listen</text>
+        <text class="v1cL" x="468" y="134">transcribe</text>
+        <text class="v1cL" x="468" y="160">think</text>
+        <text class="v1cL" x="468" y="186">speak</text>
+        <text class="v1cV" x="468" y="226">800 ms</text>
+        <text class="v1cS" x="560" y="226">work overlaps the wait</text>
+
+        <text class="v1cN" x="30" y="276">Callwell defaults from the session 2 bench, one shared time scale. Inputs are vendor targets and modelled rates.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - the same four jobs take 2,725 ms in a queue and 800 ms when they overlap; streaming is the overlap</figcaption>
+    </figure>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>What streams at each stage, and what it saves<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p><strong>Speech recognition</strong> streams partial transcripts while the caller is still talking, so the final transcript arrives soon after they stop instead of after a full pass over the recording. <strong>The language model</strong> streams tokens, so the voice can start on the first clause. <strong>Speech synthesis</strong> streams audio chunks; ElevenLabs' latency guide lists "Leverage streaming" among its four principles. <strong>The network</strong> streams too: audio goes up and down in small frames over WebRTC or a WebSocket, never as a file.</p>
+        <p>The session 2 bench computes the difference on Callwell's defaults: 800 ms to the first syllable with every stage streaming, 2,725 ms with nothing streaming. Those are inputs added up, not a measurement of any product, and your numbers will differ; the gap is the point.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>The three costs, side by side<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <table class="clean">
+          <thead><tr><th>Cost</th><th>Cascaded</th><th>Speech-to-speech</th></tr></thead>
+          <tbody>
+            <tr><td>Latency</td><td>Each hand-off adds time; streaming and preemptive tricks claw most of it back (session 2)</td><td>No hand-offs; the model still waits for the turn to end before it speaks</td></tr>
+            <tr><td>Control</td><td>Swap any of three vendors; check or rewrite the reply text before it is spoken</td><td>One provider for the whole speech path; steer by instructions, not by editing text</td></tr>
+            <tr><td>Observability</td><td>A transcript and a reply at every turn, timed per stage</td><td>No interim transcripts; audit and debugging take more work (LiveKit)</td></tr>
+            <tr><td>What the model hears</td><td>Words only; tone is lost</td><td>Tone, pace, hesitation</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+
+    <div class="callout tip">
+      <p><strong>Decide on control first, latency second.</strong> If you must keep a record of what was said, check replies before speaking them, or swap vendors, start cascaded. If the conversation's feel is the product and the audit need is light, try speech-to-speech. Then measure, because the next session shows the latency winner flips with the inputs.</p>
+    </div>
+  </section>
+
+  <section class="section" id="demo-1">
+    <div class="section-kicker">
+      <span class="klabel">Build-along</span>
+      <h2>Map Callwell's call flow</h2>
+      <span class="tag demo">★ 22 min · everyone builds</span>
+    </div>
+    <p class="lede">Before choosing a vendor, draw every hand-off a call goes through. Map Callwell's (constructed) booking call with the steps below, writing as you go; if you have your own product, map that instead and keep Callwell as the worked answer. The map is the input to every later session: the bench in session 2 times its stages, session 3 tunes its turn detection, session 4 fills its photo path, session 6 ships it.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Callwell's call flow as boxes and arrows. Top row left to right: caller's phone, phone network at 8 kHz mu-law, media stream to the server, turn detection, speech recognition. Down to the agent loop with the booking tool. Left to text to speech, back up to the media stream and out to the caller. A second path: a photo of a referral letter sent by text message goes to a vision read that extracts fields into a schema and feeds the agent loop. A dashed coral path from the agent loop leads to a receptionist for a warm handoff.">
+        <defs>
+          <filter id="v1dSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="41" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="v1dHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#0B8470" stroke-width="1" opacity=".5"/></pattern>
+          <marker id="v1dAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#10231F" stroke-width="1.6" stroke-linecap="round"/></marker>
+          <marker id="v1dAc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#C2412D" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .v1dH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v1dL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v1dS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v1dB { font: 800 11px Inter, sans-serif; fill: #8F2C1C; }
+          .v1dA { font: 700 11px Inter, sans-serif; fill: #064E42; }
+          .v1dN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v1dH" x="30" y="24">CALLWELL'S BOOKING CALL, EVERY HAND-OFF (CONSTRUCTED)</text>
+
+        <g filter="url(#v1dSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="40" y="56" width="130" height="54" rx="10" transform="rotate(-1 105 83)" fill="#FFFFFF"/>
+          <path d="M174 83 L196 83" marker-end="url(#v1dAr)"/>
+          <rect x="202" y="56" width="140" height="54" rx="10" transform="rotate(0.6 272 83)" fill="#FFFFFF"/>
+          <path d="M346 83 L366 83" marker-end="url(#v1dAr)"/>
+          <rect x="372" y="56" width="140" height="54" rx="10" transform="rotate(-0.5 442 83)" fill="#FFFFFF"/>
+          <path d="M516 83 L536 83" marker-end="url(#v1dAr)"/>
+          <rect x="542" y="56" width="140" height="54" rx="10" transform="rotate(0.7 612 83)" fill="#E8F6F2"/>
+          <path d="M686 83 L706 83" marker-end="url(#v1dAr)"/>
+          <rect x="712" y="56" width="130" height="54" rx="10" transform="rotate(-0.6 777 83)" fill="#FFFFFF"/>
+          <path d="M777 114 L777 168" marker-end="url(#v1dAr)"/>
+          <rect x="712" y="174" width="130" height="60" rx="10" transform="rotate(0.5 777 204)" fill="url(#v1dHc)"/>
+          <path d="M708 204 L690 204" marker-end="url(#v1dAr)"/>
+          <rect x="542" y="178" width="140" height="54" rx="10" transform="rotate(-0.6 612 205)" fill="#FFFFFF"/>
+          <path d="M542 196 C500 170 470 140 446 116" marker-end="url(#v1dAr)"/>
+          <path d="M368 96 C300 130 200 130 112 116" marker-end="url(#v1dAr)"/>
+          <rect x="202" y="276" width="140" height="54" rx="10" transform="rotate(0.8 272 303)" fill="#FFFFFF"/>
+          <path d="M346 303 L366 303" marker-end="url(#v1dAr)"/>
+          <rect x="372" y="276" width="140" height="54" rx="10" transform="rotate(-0.7 442 303)" fill="#E8F6F2"/>
+          <path d="M516 296 C600 290 700 270 744 240" marker-end="url(#v1dAr)"/>
+          <path d="M800 238 C812 262 812 280 808 290" stroke="#C2412D" stroke-dasharray="6 5" marker-end="url(#v1dAc)"/>
+          <rect x="726" y="296" width="116" height="48" rx="10" transform="rotate(-1 784 320)" fill="#FDEDE9" stroke="#C2412D"/>
+          <path d="M60 146 q6 -10 12 0 q6 10 12 0 q6 -10 12 0" stroke="#F07A63"/>
+        </g>
+
+        <text class="v1dL" x="105" y="80" text-anchor="middle">caller's phone</text>
+        <text class="v1dS" x="105" y="96" text-anchor="middle">speaks, interrupts</text>
+        <text class="v1dL" x="272" y="80" text-anchor="middle">phone network</text>
+        <text class="v1dS" x="272" y="96" text-anchor="middle">8 kHz mu-law</text>
+        <text class="v1dL" x="442" y="80" text-anchor="middle">media stream</text>
+        <text class="v1dS" x="442" y="96" text-anchor="middle">two-way audio</text>
+        <text class="v1dL" x="612" y="80" text-anchor="middle">turn detection</text>
+        <text class="v1dS" x="612" y="96" text-anchor="middle">is the turn over?</text>
+        <text class="v1dL" x="777" y="80" text-anchor="middle">speech to text</text>
+        <text class="v1dS" x="777" y="96" text-anchor="middle">streaming</text>
+        <rect x="722" y="190" width="110" height="32" rx="6" fill="#FFFFFF"/>
+        <text class="v1dL" x="777" y="203" text-anchor="middle">agent loop</text>
+        <text class="v1dS" x="777" y="217" text-anchor="middle">booking tool</text>
+        <text class="v1dL" x="612" y="202" text-anchor="middle">text to speech</text>
+        <text class="v1dS" x="612" y="218" text-anchor="middle">streams audio</text>
+        <text class="v1dL" x="272" y="300" text-anchor="middle">photo by text</text>
+        <text class="v1dS" x="272" y="316" text-anchor="middle">referral letter</text>
+        <text class="v1dL" x="442" y="300" text-anchor="middle">vision read</text>
+        <text class="v1dS" x="442" y="316" text-anchor="middle">fields to a schema</text>
+        <text class="v1dB" x="784" y="317" text-anchor="middle">receptionist</text>
+        <text class="v1dS" x="784" y="332" text-anchor="middle">warm handoff</text>
+        <text class="v1dA" x="40" y="176">audio back out</text>
+        <text class="v1dA" x="40" y="262">session 4</text>
+        <text class="v1dA" x="40" y="278">the photo path</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - ten boxes and twelve arrows; every arrow is a hand-off that adds time, and every box is a place a call can fail</figcaption>
+    </figure>
+
+    <div class="steps">
+      <div class="step">
+        <p><strong>List the moments of one ordinary call.</strong> Not the architecture yet: what the caller does, in order. Include the moments that go wrong, because those are the ones the map must handle.</p>
+        <div class="prompt-box good"><span class="label">★ Step 1 · the call, as moments</span>1. Caller dials, hears a greeting that says it is an automated assistant
+2. Caller asks to book with a named clinician at a named site
+3. Agent asks for date of birth; caller pauses mid-answer
+4. Agent checks the booking system (a tool call)
+5. Agent offers two slots; caller interrupts with "no, not Thursday"
+6. Caller mentions a referral letter; agent asks them to text a photo
+7. Agent reads the letter, confirms the referral reason back
+8. Booking confirmed, read back slowly; call ends
+Failure moments: caller upset, caller asks a medical question,
+recognition keeps failing on a name</div>
+      </div>
+      <div class="step">
+        <p><strong>Choose the pipeline, with reasons.</strong> Use the three costs from Part 3. Write the choice and the one reason that would make you change it.</p>
+        <div class="prompt-box good"><span class="label">★ Step 2 · cascaded or speech-to-speech</span>Choice: cascaded (speech to text, language model, text to speech)
+Why:    the clinic needs a transcript of every booking request,
+        and the reply must be checked against the booking system
+        before it is spoken (no confirming a slot that is gone)
+Would switch if: callers complain the agent sounds flat on
+        upset calls AND an audit trail can come from elsewhere</div>
+      </div>
+      <div class="step">
+        <p><strong>Write the stage list.</strong> One line per box on the map, in the order a turn passes through them, with what each one hands to the next. This becomes the row list of the session 2 waterfall.</p>
+        <div class="prompt-box good"><span class="label">★ Step 3 · stages and hand-offs</span>uplink         phone network to media stream    hands on: audio frames
+turn detection decides the caller has finished  hands on: "turn over"
+speech to text streams the transcript           hands on: final text
+agent loop     reads, calls booking tool        hands on: reply text
+text to speech speaks the reply                 hands on: audio frames
+downlink       media stream to the phone        hands on: sound</div>
+      </div>
+      <div class="step">
+        <p><strong>Mark what streams.</strong> For each stage, write yes or no, and what the caller hears while it works. Any "no" is a place the whole output must finish before the next stage starts.</p>
+        <div class="prompt-box good"><span class="label">★ Step 4 · streaming check</span>speech to text   yes   (partial transcripts while caller talks)
+agent loop       yes   (tokens stream to the voice)
+  tool call      NO    (the booking lookup returns all at once)
+text to speech   yes   (audio starts on the first clause)
+What the caller hears during the tool call: a short
+acknowledgement, "One moment, I'm checking Tuesday."</div>
+      </div>
+      <div class="step">
+        <p><strong>Mark the photo path and the door to a human.</strong> Two branches every clinic line needs. Write when each opens, and what is handed over so nobody asks the caller to start again.</p>
+        <div class="prompt-box good"><span class="label">★ Step 5 · the two side doors</span>Photo path: caller mentions a letter -&gt; agent texts a link
+  -&gt; caller sends a photo -&gt; vision read fills referral fields
+  -&gt; agent reads the key field back for confirmation (session 4)
+Human door: caller asks for a person, sounds distressed, asks a
+  medical question, or recognition fails twice on the same field
+  -&gt; warm transfer with a summary: who, what they want, what is
+  already confirmed (session 6)</div>
+      </div>
+      <div class="step">
+        <p><strong>Write it down as a decision record.</strong> Three lines you can show a colleague. When session 2 puts numbers on the stages, you will come back and test the record.</p>
+        <div class="prompt-box good"><span class="label">★ Step 6 · decision record</span>We put Callwell's booking agent on a cascaded pipeline with
+streaming at every stage, a text-message photo path and a warm
+handoff, because the clinic needs a checkable transcript and
+reply. We will revisit if measured first-syllable latency
+misses target after tuning (session 2).</div>
+      </div>
+    </div>
+
+    <div class="callout tip">
+      <p><strong>Count the arrows.</strong> On Callwell's map there are twelve. Each one is a place where time is spent and something can be lost: audio quality on the phone network, a word on the way to text, a field on the way out of a photo. When a call goes wrong in production, the first question is which arrow it went wrong on, and the map is how you will answer it.</p>
+    </div>
+  </section>
+
+  <section class="section" id="exercise">
+    <div class="section-kicker">
+      <span class="klabel">Homework</span>
+      <h2>Before session 2</h2>
+      <span class="tag exercise">30 min</span>
+    </div>
+    <ol>
+      <li><strong>Call a booking line and time it.</strong> Any automated line you can reach. Count, roughly, the silence between your last word and its first word, three times. Write the three numbers down; session 2 tells you whether they were good.</li>
+      <li><strong>Finish your own map.</strong> Every box and arrow for your product, the photo path if you have one, and the door to a human.</li>
+      <li><strong>Find your text trail.</strong> On your map, circle every place where text exists that you could log. If you chose speech-to-speech, write where the audit record will come from instead.</li>
+      <li><strong>Mark your non-streaming stages.</strong> Tool calls, database lookups, anything that returns all at once. Bring the list; session 2 shows what each one costs.</li>
+    </ol>
+  </section>
+
+  <section class="section" id="quiz">
+    <div class="section-kicker">
+      <span class="klabel">Check yourself</span>
+      <h2>Three questions</h2>
+    </div>
+    <p>Clear all three and session 1 gets stamped in your passport.</p>
+
+    <div class="quiz-q" data-answer="2">
+      <p class="qtext">1 · Callwell must keep a record of what each caller asked for and check every reply against the booking system before it is spoken. Which pipeline fits first?</p>
+      <button class="qopt" type="button">A · Speech-to-speech, because it is always the faster option</button>
+      <button class="qopt" type="button">B · Speech-to-speech, because tone matters most on a clinic line</button>
+      <button class="qopt" type="button">C · Cascaded, because the transcript and the reply text exist at hand-offs you can log and check</button>
+      <button class="qopt" type="button">D · Either; the choice only affects cost</button>
+      <p class="qwhy">The need is a text trail and a checkpoint before speech, which is exactly what the cascaded hand-offs give you. LiveKit lists "Harder to audit" and delayed transcripts as realtime costs. Speed is not "always" on either side: session 2 shows the latency winner depends on the inputs.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="1">
+      <p class="qtext">2 · On Callwell's defaults, what does turning streaming off at every stage do to the time before the caller hears a reply?</p>
+      <button class="qopt" type="button">A · Nothing, the same models do the same work</button>
+      <button class="qopt" type="button">B · It goes from 800 ms to 2,725 ms, because each stage now waits for the whole output of the last</button>
+      <button class="qopt" type="button">C · It goes down, because fewer messages are sent</button>
+      <button class="qopt" type="button">D · It only matters for speech-to-speech models</button>
+      <p class="qwhy">The work is the same; the overlap disappears. With streaming, transcribing and thinking run while the end-of-turn wait is still counting; without it they queue. Both numbers are the session 2 bench's computed totals on modelled inputs, not a product measurement.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="3">
+      <p class="qtext">3 · Which statement about speech-to-speech models is supported by the vendor documentation read for this session?</p>
+      <button class="qopt" type="button">A · They produce interim transcripts sooner than a cascade</button>
+      <button class="qopt" type="button">B · They let you swap the speech recogniser independently</button>
+      <button class="qopt" type="button">C · They lose the caller's tone because audio becomes text first</button>
+      <button class="qopt" type="button">D · They remove the inter-stage hand-offs, and they are harder to audit because there is no text trail at every stage</button>
+      <p class="qwhy">LiveKit's pipeline page names both: lower latency from removing hand-offs, and "Harder to audit: Without a text trail at every stage". A, B and C describe the cascade's properties or its costs, the wrong way round.</p>
+    </div>
+
+    <p class="quiz-score"></p>
+  </section>
+
+  <section class="section" id="official">
+    <div class="section-kicker">
+      <span class="klabel">Sources covered</span>
+      <h2>What this session teaches, and where it came from</h2>
+    </div>
+    <div class="covered">
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">LiveKit Agents docs: pipeline types (read 2026-11-08)</span><span class="note">Cascaded, realtime and hybrid definitions, the cascaded-as-default recommendation, and the costs on each side, quoted</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">OpenAI voice agents guide and Realtime API reference (read 2026-11-08)</span><span class="note">Chained against speech-to-speech paths, the measure-the-wait advice, accepted audio formats</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">Twilio Media Streams docs (modified 2026-10)</span><span class="note">Phone audio arrives as 8 kHz mu-law mono</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">Pipecat pipeline guide; DeepLearning.AI "Building AI Voice Agents for Production"</span><span class="note">Frames and processors, and the course's lesson list; the course videos and certificate stay with DeepLearning.AI</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">Streaming totals (800 ms and 2,725 ms)</span><span class="note">Computed by the session 2 bench from vendor targets and modelled rates; not a measurement of any product</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">Callwell, its sites, clinicians and call flow</span><span class="note">Constructed for teaching; no real clinic or caller</span></div>
+    </div>
+    <p class="mono" style="margin-top:14px">Every fact on this page, and its verification tier, is recorded in the course's source map.</p>
+  </section>
+
+  <section class="cheat" id="cheatsheet">
+    <h3>Session 1 cheat sheet <span>· pin this</span></h3>
+    <div class="grid-2">
+      <div class="cheat-item"><b>The loop does not change</b><span>Voice adds a listen stage and a speak stage around the agent you already built.</span></div>
+      <div class="cheat-item"><b>Three new problems</b><span>A clock the caller hears, a turn to detect, a listener who cannot scroll.</span></div>
+      <div class="cheat-item"><b>Cascaded</b><span>Speech to text, model, text to speech. A text trail at every hand-off; tone is lost.</span></div>
+      <div class="cheat-item"><b>Speech-to-speech</b><span>One model hears and speaks. Fewer hand-offs, tone survives, harder to audit.</span></div>
+      <div class="cheat-item"><b>Stream everything</b><span>Callwell defaults: 800 ms streaming, 2,725 ms without. Tool calls do not stream; say something.</span></div>
+      <div class="cheat-item"><b>Map before you buy</b><span>Every box, every arrow, the photo path and the door to a human.</span></div>
+    </div>
+  </section>
+
+  <div class="callout next">
+    <span class="nx-pill">Next session</span>
+    <p>The map has six stages on the main path. Session 2 puts a number on each one, adds them up as a waterfall from the caller's last word to the first syllable they hear, and shows which stage to fix first, what a tool call does to the total, and what cutting the wait costs in callers you talk over.</p>
+  </div>
+
+  <footer class="pagefoot">
+    <span>Session 1 of 6 · learn-voice-multimodal-agents-with-phoebe · by Phoebe Fu &nbsp;·&nbsp; 📚 <a href="https://phoebefu6.github.io/learn-with-phoebe/">Learn with Phoebe ↗</a></span>
+    <span><a href="../index.html">← Course home</a> &nbsp;·&nbsp; <a href="02-the-latency-waterfall.html">Next: The latency waterfall →</a></span>
+  </footer>
+
+</main>
+
+<script src="../assets/app.js?v=1"></script>
+</body>
+</html>

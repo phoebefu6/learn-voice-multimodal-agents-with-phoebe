@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- social:start -->
+<meta name="description" content="Session 4 of 6. A caller texts a photo of a referral letter in the middle of a call. How the image reaches the model (URL, base64 or file ID), what it costs, OCR against a vision model, extracting to a strict schema, and why a value that passes the schema still has to be read back by voice.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Learn with Phoebe">
+<meta property="og:title" content="Images in the loop: reading what callers send - learn voice and multimodal agents with phoebe">
+<meta property="og:description" content="Session 4 of 6. The photo path into a voice agent, OCR or a vision model, and a schema that guarantees shape but not a correctly read value.">
+<meta property="og:url" content="https://phoebefu6.github.io/learn-voice-multimodal-agents-with-phoebe/courses/04-images-in-the-loop.html">
+<meta property="og:image" content="https://phoebefu6.github.io/learn-voice-multimodal-agents-with-phoebe/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Images in the loop: reading what callers send - learn voice and multimodal agents with phoebe">
+<meta name="twitter:description" content="Session 4 of 6. The photo path, OCR or a vision model, and asking back by voice when a field passes the schema but was misread.">
+<meta name="twitter:image" content="https://phoebefu6.github.io/learn-voice-multimodal-agents-with-phoebe/assets/og-cover.png">
+<!-- social:end -->
+<title>Session 4 · Images in the loop: reading what callers send - learn voice and multimodal agents with phoebe</title>
+<link rel="stylesheet" href="../assets/style.css?v=2">
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="wrap">
+    <span class="crumb"><a href="../index.html">learn-voice-multimodal-agents-with-phoebe</a> / Session 4 of 6</span>
+    <button class="btn" id="toggle-all" type="button">Expand all</button>
+    <button class="btn primary" id="zoom-toggle" type="button">Projector zoom: off</button>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="eyebrow">Learn Voice and Multimodal Agents with Phoebe · Session 4 of 6</div>
+    <h1>Images in the <span class="accent">loop</span>: reading what callers send</h1>
+    <p class="sub">Halfway through a booking call, the caller says "I've got a letter from my doctor". Nobody wants them to read it aloud, letter by letter, into a phone. So the agent texts them a link, they photograph the letter, and now your voice agent has a picture to read while the call is still running. Tonight we follow that photo from the caller's camera to the model, choose how to read it, pull the fields into a strict schema, and then do the part a schema cannot: say the important values back to the caller and listen for "no, that's wrong". Images here are input only; nothing gets generated.</p>
+    <div class="chip-row">
+      <span class="chip level">🟠 Deeper</span>
+      <span class="chip audience">Builders adding a photo path to a voice agent</span>
+      <span class="chip audience">One schema, one read-back script</span>
+      <span class="chip time">45 min</span>
+    </div>
+    <div class="agenda">
+      <span class="a1" style="flex:1">0-3 · Welcome</span>
+      <span class="a2" style="flex:4">3-18 · The photo path, OCR or vision, schema then ask back</span>
+      <span class="a3" style="flex:5">18-40 · Build-along: read Callwell's referral letter</span>
+      <span class="a4" style="flex:1">40-45 · Q&amp;A</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="section" id="intro">
+    <div class="section-kicker">
+      <span class="klabel">Part 0</span>
+      <h2>Where we start</h2>
+    </div>
+    <p class="lede">The running case is still the constructed Callwell example: an invented clinic group with sites at Riverside, Northgate and Harbour, and one booking line. In session 1 you drew a side branch on the call-flow map labelled "photo by text, referral letter, vision read". Tonight we build that branch. The letter in the build-along is invented, the practice that wrote it is invented, and so is Doctor Lindqvist. The agent's job with that letter is narrow on purpose: find the few fields a booking needs, confirm them with the caller, and hand anything clinical to a person.</p>
+
+    <div class="legend">
+      <span class="pill">🎫 Clear all three quiz questions to stamp your passport</span>
+      <span class="pill">Live = presented in the 45 minutes</span>
+      <span class="pill">Self-study = the full depth, after class</span>
+      <span class="pill">★ Build-along = write it yourself</span>
+    </div>
+
+    <div class="callout win">
+      <p><strong>★ What you walk out with tonight.</strong> A drawn photo path from the caller's camera to the model call, with the cheapest way to keep the image in a multi-turn loop; a reasoned choice between OCR, a vision model and the hybrid for your documents; a strict extraction schema with an honest "unreadable" option and an evidence quote per field; and a spoken read-back script plus the routing rule for anything unreadable or urgent.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-1">
+    <div class="section-kicker">
+      <span class="klabel">Part 1 · covers vision input mechanics</span>
+      <h2>How a photo gets into a call</h2>
+      <span class="tag concept">5 min live</span>
+    </div>
+    <p class="lede">During a Callwell call (constructed), the agent texts the caller a link. The caller takes a photo of their referral letter and sends it. Your server receives the file and stores it. From there, the model needs to see the image, and there are only three ways to hand it over. Which one you choose decides how much you pay every turn for the rest of the call.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 312" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The photo path. Top row, left to right: the caller's phone camera takes a photo of the letter, a text message carries it back, your server stores the file once, the server gets a short file id, and the agent loop calls the model with that id on each turn. Bottom left, the patch grid: cost equals ceil of width over 28 times ceil of height over 28, so a 1000 by 1000 pixel image is 36 by 36 patches, 1,296 visual tokens. Bottom right, in an agent loop over three turns: base64 resends the whole image every turn, drawn as three coral blocks, while a file id sends a short reference each turn.">
+        <defs>
+          <filter id="v4aSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="43" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="v4aHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#0B8470" stroke-width="1" opacity=".5"/></pattern>
+          <marker id="v4aAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#10231F" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .v4aH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v4aL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v4aS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v4aB { font: 800 11px Inter, sans-serif; fill: #8F2C1C; }
+          .v4aA { font: 700 11px Inter, sans-serif; fill: #064E42; }
+          .v4aN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v4aH" x="30" y="24">THE PHOTO PATH: FROM THE CALLER'S CAMERA TO THE MODEL, MID-CALL (CONSTRUCTED)</text>
+
+        <g filter="url(#v4aSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M120 46 q5 -8 10 0 q5 8 10 0 q5 -8 10 0" stroke="#F07A63"/>
+          <rect x="30" y="60" width="140" height="60" rx="10" transform="rotate(-1 100 90)" fill="#FFFFFF"/>
+          <path d="M174 90 L196 90" marker-end="url(#v4aAr)"/>
+          <rect x="200" y="60" width="140" height="60" rx="10" transform="rotate(0.8 270 90)" fill="#FFFFFF"/>
+          <path d="M344 90 L366 90" marker-end="url(#v4aAr)"/>
+          <rect x="370" y="60" width="150" height="60" rx="10" transform="rotate(-0.6 445 90)" fill="#FFFFFF"/>
+          <path d="M524 90 L546 90" marker-end="url(#v4aAr)"/>
+          <rect x="550" y="60" width="110" height="60" rx="10" transform="rotate(1.2 605 90)" fill="#E8F6F2"/>
+          <path d="M664 90 L686 90" marker-end="url(#v4aAr)"/>
+          <rect x="690" y="60" width="160" height="60" rx="10" transform="rotate(-0.7 770 90)" fill="#E8F6F2"/>
+          <rect x="30" y="150" width="400" height="124" rx="12" transform="rotate(-0.3 230 212)" fill="#FFFFFF"/>
+          <rect x="450" y="150" width="400" height="124" rx="12" transform="rotate(0.3 650 212)" fill="#FFFFFF"/>
+          <rect x="50" y="186" width="80" height="80" fill="url(#v4aHc)"/>
+          <path d="M66 186 L66 266 M82 186 L82 266 M98 186 L98 266 M114 186 L114 266 M50 202 L130 202 M50 218 L130 218 M50 234 L130 234 M50 250 L130 250" stroke-width="1.2"/>
+          <rect x="540" y="190" width="60" height="20" rx="3" fill="#FDEDE9" stroke="#C2412D"/>
+          <rect x="620" y="190" width="60" height="20" rx="3" fill="#FDEDE9" stroke="#C2412D"/>
+          <rect x="700" y="190" width="60" height="20" rx="3" fill="#FDEDE9" stroke="#C2412D"/>
+          <rect x="561" y="226" width="18" height="16" rx="3" fill="#A8DCD1"/>
+          <rect x="641" y="226" width="18" height="16" rx="3" fill="#A8DCD1"/>
+          <rect x="721" y="226" width="18" height="16" rx="3" fill="#A8DCD1"/>
+        </g>
+
+        <text class="v4aL" x="100" y="88" text-anchor="middle">phone camera</text>
+        <text class="v4aS" x="100" y="106" text-anchor="middle">photo of letter</text>
+        <text class="v4aL" x="270" y="88" text-anchor="middle">text message</text>
+        <text class="v4aS" x="270" y="106" text-anchor="middle">replies to a link</text>
+        <text class="v4aL" x="445" y="88" text-anchor="middle">your server</text>
+        <text class="v4aS" x="445" y="106" text-anchor="middle">stores the file once</text>
+        <text class="v4aL" x="605" y="88" text-anchor="middle">file id</text>
+        <text class="v4aS" x="605" y="106" text-anchor="middle">a short ref</text>
+        <text class="v4aL" x="770" y="88" text-anchor="middle">agent loop</text>
+        <text class="v4aS" x="770" y="106" text-anchor="middle">model call, each turn</text>
+
+        <text class="v4aA" x="46" y="172">THE PATCH GRID (ANTHROPIC)</text>
+        <text class="v4aL" x="150" y="202">cost = ceil(w/28) x ceil(h/28)</text>
+        <text class="v4aS" x="150" y="220">each square is 28 x 28 px</text>
+        <text class="v4aS" x="150" y="238">1000 x 1000 px = 36 x 36 patches</text>
+        <text class="v4aA" x="150" y="256">= 1,296 visual tokens</text>
+
+        <text class="v4aA" x="466" y="172">IN AN AGENT LOOP</text>
+        <text class="v4aS" x="570" y="184" text-anchor="middle">turn 1</text>
+        <text class="v4aS" x="650" y="184" text-anchor="middle">turn 2</text>
+        <text class="v4aS" x="730" y="184" text-anchor="middle">turn 3</text>
+        <text class="v4aB" x="466" y="204">base64</text>
+        <text class="v4aA" x="466" y="238">file id</text>
+        <text class="v4aS" x="776" y="204">whole image</text>
+        <text class="v4aS" x="776" y="238">a reference</text>
+        <text class="v4aS" x="466" y="262">same photo, resent every turn, or pointed to</text>
+
+        <text class="v4aN" x="30" y="298">Anthropic vision docs, read 2026-11-08: base64 is resent every turn; the Files API keeps the payload small.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - store the photo once, hand the model a file id, and the image stops riding along in full on every turn of the call</figcaption>
+    </figure>
+
+    <details class="card" open>
+      <summary><span class="mode live">Live</span>Three ways to hand over an image<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>OpenAI's images and vision guide (read 2026-11-08) lists exactly three: "a fully qualified URL to an image file", "a Base64-encoded data URL", or "a file ID (created with the Files API)". Anthropic's vision docs offer the same shapes. For a one-shot question, any of them works. For a phone call, the image has to survive a conversation: the caller confirms a field, asks a question, changes the slot, and every turn is a fresh model call that carries the context.</p>
+        <p>That is where the choice bites. Anthropic's docs say it directly for agent loops: a base64 image is sent again with every turn, so use the Files API and pass a <code>file_id</code> instead. A public URL is also a reference, but a referral letter does not belong at a public address; keep it in your own storage and hand the model the id.</p>
+        <p>OpenAI also exposes a <code>detail</code> setting: <code>low</code> ("Coarse image understanding"), <code>high</code>, <code>original</code> for large, dense images where the model supports it, and <code>auto</code>, the default. Do not assume <code>low</code> saves money: the guide warns that "<code>low</code> does not always use fewer tokens than <code>high</code>". For a letter with small print, coarse is the wrong goal anyway.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>Cost and size limits, dated<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Anthropic's vision docs, read 2026-11-08 (vendor documentation, re-verify before you rely on it):</p>
+        <ul>
+          <li><strong>Dimensions:</strong> "The maximum dimensions for each image are 8000x8000 px." Send more than 20 images and a stricter per-image limit applies; the safe rule on the page is to keep each side under 3,000 px or send 20 or fewer.</li>
+          <li><strong>File size:</strong> 10 MB per image on the Claude API. Formats: JPEG, PNG, GIF, WebP.</li>
+          <li><strong>Cost:</strong> counted in 28 x 28 px patches, "referred to as a visual token": ceil(width / 28) x ceil(height / 28). The page's own example, 1000 x 1000 px, comes to 1,296 tokens.</li>
+        </ul>
+        <p>One more capability to watch: OpenAI's realtime conversations guide (read 2026-11-08) says <code>gpt-realtime-2</code> and <code>gpt-realtime</code> "also support image input". That means a speech-to-speech session could, in principle, see the letter inside the same conversation. Model names change monthly; re-verify before you rely on it, and note that the guide names those two models, not every realtime model.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>The vendor tells you where the money leaks.</strong> Anthropic's vision docs (read 2026-11-08) single out agent loops: base64 images are resent on every turn, and the fix they name is the Files API. A ten-turn booking call that carries a letter photo as base64 pays for that photo ten times; with a file id, it sends a reference. The arithmetic is yours to run on your own image sizes, with the patch formula above.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-2">
+    <div class="section-kicker">
+      <span class="klabel">Part 2 · covers the reading choice</span>
+      <h2>OCR or a vision model</h2>
+      <span class="tag concept">5 min live</span>
+    </div>
+    <p class="lede">Once the image is in reach, something has to read it. Optical character recognition (OCR) turns pixels into words. A vision model reads the page the way a person glances at it: layout, headings, which line is the date. No source we read compares the two on referral letters, so treat what follows as a design trade-off from practice, not a measured ranking.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 372" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The same invented letter goes down two paths. Top, OCR: the output is words with a confidence number each, such as Doctor 0.98, Lindqvist 0.91, 14/03 0.62, but the layout is lost, so it does not say which line is the date. Bottom, a vision model: the output is named fields, clinician Doctor Lindqvist, reason knee pain, date 14/03, but with no confidence per field unless you ask. On the right, in coral, the hybrid: feed the OCR text and the image to the vision model, take fields from the model and confidence from OCR. All numbers are constructed.">
+        <defs>
+          <filter id="v4bSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="47" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="v4bHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#0B8470" stroke-width="1" opacity=".5"/></pattern>
+          <marker id="v4bAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#10231F" stroke-width="1.6" stroke-linecap="round"/></marker>
+          <marker id="v4bAc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#C2412D" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .v4bH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v4bL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v4bS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v4bB { font: 800 11px Inter, sans-serif; fill: #8F2C1C; }
+          .v4bA { font: 700 11px Inter, sans-serif; fill: #064E42; }
+          .v4bN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v4bH" x="30" y="24">ONE INVENTED LETTER, TWO WAYS TO READ IT, AND THE HYBRID</text>
+
+        <g filter="url(#v4bSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="40" y="120" width="120" height="150" rx="4" transform="rotate(-2 100 195)" fill="#FFFFFF"/>
+          <path d="M56 146 L140 146 M56 162 L132 162 M56 178 L144 178 M56 194 L120 194 M56 226 L136 226 M56 242 L110 242" stroke-width="1.4" stroke="#4A5E59"/>
+          <path d="M60 206 q8 -6 16 0 q8 6 16 0 q8 -6 16 0" stroke="#F07A63"/>
+          <path d="M164 176 C190 150 196 112 216 102" marker-end="url(#v4bAr)"/>
+          <path d="M164 226 C190 246 196 256 216 262" marker-end="url(#v4bAr)"/>
+          <rect x="222" y="70" width="124" height="60" rx="10" transform="rotate(0.8 284 100)" fill="#FFFFFF"/>
+          <path d="M350 100 L372 100" marker-end="url(#v4bAr)"/>
+          <rect x="378" y="56" width="250" height="92" rx="10" transform="rotate(-0.4 503 102)" fill="#E8F6F2"/>
+          <rect x="222" y="232" width="124" height="60" rx="10" transform="rotate(-0.8 284 262)" fill="#FFFFFF"/>
+          <path d="M350 262 L372 262" marker-end="url(#v4bAr)"/>
+          <rect x="378" y="216" width="250" height="92" rx="10" transform="rotate(0.4 503 262)" fill="#E8F6F2"/>
+          <path d="M632 102 C648 108 654 130 662 148" marker-end="url(#v4bAr)"/>
+          <path d="M632 262 C648 256 654 240 662 228" marker-end="url(#v4bAr)"/>
+          <rect x="666" y="126" width="184" height="120" rx="12" transform="rotate(1 758 186)" fill="#FDEDE9" stroke="#C2412D"/>
+        </g>
+
+        <text class="v4bS" x="100" y="292" text-anchor="middle">invented letter</text>
+
+        <text class="v4bL" x="284" y="96" text-anchor="middle">OCR</text>
+        <text class="v4bS" x="284" y="114" text-anchor="middle">text + boxes</text>
+        <text class="v4bA" x="392" y="76">OCR OUTPUT</text>
+        <text class="v4bL" x="392" y="96">Doctor 0.98  Lindqvist 0.91</text>
+        <text class="v4bL" x="392" y="114">knee 0.97  pain 0.95</text>
+        <text class="v4bL" x="392" y="132">14/03 0.62  urgent 0.88</text>
+        <text class="v4bS" x="392" y="166">layout lost: which line is the date?</text>
+
+        <text class="v4bL" x="284" y="258" text-anchor="middle">vision model</text>
+        <text class="v4bS" x="284" y="276" text-anchor="middle">layout + meaning</text>
+        <text class="v4bA" x="392" y="236">VISION OUTPUT</text>
+        <text class="v4bL" x="392" y="256">clinician: Doctor Lindqvist</text>
+        <text class="v4bL" x="392" y="274">reason: knee pain</text>
+        <text class="v4bL" x="392" y="292">date: 14/03</text>
+        <text class="v4bS" x="392" y="326">no confidence per field unless you ask</text>
+
+        <text class="v4bB" x="682" y="150">HYBRID</text>
+        <text class="v4bL" x="682" y="172">OCR text + the image</text>
+        <text class="v4bL" x="682" y="190">into the vision model</text>
+        <text class="v4bS" x="682" y="210">fields from the model,</text>
+        <text class="v4bS" x="682" y="226">confidence from OCR</text>
+
+        <text class="v4bN" x="30" y="356">Constructed: words, confidences and fields are invented to show each output's shape; your numbers will differ.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - OCR knows how sure it is about each word but not what the words mean; a vision model knows what they mean but not how sure it is</figcaption>
+    </figure>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>When OCR wins<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>OCR gives you text, a bounding box for each word and a confidence number per word. It gives you no meaning: it does not know that "14/03" is the letter's date rather than an appointment. It wins when the document has a fixed layout you can map by position (a form you designed, always the same boxes), when you need a per-word confidence you can threshold, or when you want a cheap first pass that tells you the photo is too blurry before you spend a model call on it.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>When a vision model wins<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>A vision model reads layout and meaning: it can find "the referring clinician" on a letter it has never seen, from any practice, in any template. That is most of Callwell's problem, because every practice writes letters differently. The cost is that it gives no calibrated per-field confidence unless you ask for one, and a confidence the model writes about itself is a guess, not a measurement.</p>
+        <p>Both vendors publish where it struggles (read 2026-11-08). OpenAI lists small text, rotated text, non-Latin text, approximate counting and weak precise localisation, and says the model has no access to file names or metadata. Anthropic says Claude "might hallucinate or make mistakes when interpreting low-quality, rotated, or very small images under 200 pixels", that coordinates are approximate, and that "heavy JPEG compression can make text difficult to read". A phone photo of a folded letter on a kitchen table can hit several of those at once.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>The hybrid, and the tips that help either way<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>The hybrid runs OCR first and passes both the OCR text and the image to the vision model. The model does the reading for meaning; the OCR confidences tell you which fields rest on shaky pixels, so your code (not the model) decides what to ask back. It costs two calls and some plumbing. Whether it beats either alone on your letters is something only your own sample can tell you.</p>
+        <p>Whichever you choose, the vendor tips apply. Anthropic: "If the image contains important text, make sure it's legible and not too small", and label pages "Image 1:", "Image 2:" when a caller sends a two-page letter. OpenAI: enlarge small text, or use <code>detail: original</code> where the model supports it. On the call itself, that becomes a sentence the agent can say: "If you can, lay the letter flat near a window and take the photo straight on."</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>Both vendors say "not for diagnosis", in writing.</strong> OpenAI's vision guide (read 2026-11-08): "The model is not suitable for interpreting specialized medical images like CT scans." Anthropic's vision docs say Claude is not designed to interpret complex diagnostic scans such as CTs or MRIs. A referral letter is not a scan, but the line is the same one Callwell draws: the agent reads where to route the letter, never what it means for the patient.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-3">
+    <div class="section-kicker">
+      <span class="klabel">Part 3 · covers structured extraction and confidence</span>
+      <h2>Extract to a schema, then ask back</h2>
+      <span class="tag concept">5 min live</span>
+    </div>
+    <p class="lede">The booking tool needs fields, not prose. So you ask the model to return JSON that fits a schema, and with strict mode on you get JSON that fits every time. That feels like safety, and it is half of it. A schema checks the shape of the answer. It cannot check that "4/03" was really "14/03" on the paper. On a phone call, the only one who can check that is the caller, so the agent says it back.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 316" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A misread that passes. Top row: the letter says 14/03 but is smudged; the model returns date 4/03, drawn in coral; the schema check sees a string and passes it; the booking record now holds 4/03, which is wrong. An arrow goes down to the spoken read-back: the agent asks, the fourth of March?, and the caller says no, the fourteenth. An arrow goes left to the fixed record: date 14/03, confirmed by voice. Note: the schema saw a valid string; only the caller knew it was wrong.">
+        <defs>
+          <filter id="v4cSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="53" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="v4cHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#C2412D" stroke-width="1" opacity=".5"/></pattern>
+          <marker id="v4cAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#10231F" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .v4cH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v4cL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v4cS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v4cB { font: 800 11px Inter, sans-serif; fill: #8F2C1C; }
+          .v4cA { font: 700 11px Inter, sans-serif; fill: #064E42; }
+          .v4cN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v4cH" x="30" y="24">A MISREAD THAT PASSES THE SCHEMA, AND THE ONLY CHECK THAT CATCHES IT (CONSTRUCTED)</text>
+
+        <g filter="url(#v4cSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="30" y="66" width="150" height="64" rx="10" transform="rotate(-1 105 98)" fill="url(#v4cHc)"/>
+          <path d="M184 98 L206 98" marker-end="url(#v4cAr)"/>
+          <rect x="210" y="66" width="140" height="64" rx="10" transform="rotate(1.2 280 98)" fill="#FDEDE9" stroke="#C2412D"/>
+          <path d="M354 98 L376 98" marker-end="url(#v4cAr)"/>
+          <rect x="380" y="66" width="160" height="64" rx="10" transform="rotate(-0.6 460 98)" fill="#FFFFFF"/>
+          <path d="M544 98 L566 98" marker-end="url(#v4cAr)"/>
+          <rect x="570" y="66" width="140" height="64" rx="10" transform="rotate(0.8 640 98)" fill="#FFFFFF"/>
+          <path d="M640 134 L640 190" marker-end="url(#v4cAr)"/>
+          <rect x="540" y="196" width="200" height="70" rx="10" transform="rotate(-0.6 640 231)" fill="#E8F6F2"/>
+          <path d="M536 231 L466 231" marker-end="url(#v4cAr)"/>
+          <rect x="300" y="196" width="160" height="70" rx="10" transform="rotate(0.8 380 231)" fill="#E8F6F2" stroke="#0B8470"/>
+          <path d="M752 231 q6 -10 12 0 q6 10 12 0 q6 -10 12 0" stroke="#F07A63"/>
+        </g>
+
+        <rect x="44" y="80" width="122" height="38" rx="6" fill="#FFFFFF"/>
+        <text class="v4cL" x="105" y="96" text-anchor="middle">on the letter</text>
+        <text class="v4cS" x="105" y="112" text-anchor="middle">14/03, smudged</text>
+        <text class="v4cB" x="280" y="94" text-anchor="middle">model returns</text>
+        <text class="v4cL" x="280" y="112" text-anchor="middle">"date": "4/03"</text>
+        <text class="v4cL" x="460" y="94" text-anchor="middle">schema check</text>
+        <text class="v4cA" x="460" y="112" text-anchor="middle">a string: passes</text>
+        <text class="v4cL" x="640" y="94" text-anchor="middle">booking record</text>
+        <text class="v4cS" x="640" y="112" text-anchor="middle">date 4/03, wrong</text>
+
+        <text class="v4cA" x="640" y="216" text-anchor="middle">SPOKEN READ-BACK</text>
+        <text class="v4cL" x="640" y="236" text-anchor="middle">"The fourth of March?"</text>
+        <text class="v4cS" x="640" y="254" text-anchor="middle">caller: "No, the fourteenth"</text>
+
+        <text class="v4cA" x="380" y="216" text-anchor="middle">FIXED</text>
+        <text class="v4cL" x="380" y="236" text-anchor="middle">date 14/03</text>
+        <text class="v4cS" x="380" y="254" text-anchor="middle">confirmed by voice</text>
+
+        <text class="v4cN" x="40" y="224">The schema saw a valid string.</text>
+        <text class="v4cN" x="40" y="242">Only the caller knew it was wrong.</text>
+
+        <text class="v4cN" x="30" y="300">Constructed. A schema guarantees shape, not a correctly read value; the spoken read-back checks the value.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - the coral misread passes every check the code can run; the loop through the caller's ear is the one that catches it</figcaption>
+    </figure>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>What the schema guarantees, and what it does not<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>OpenAI's Structured Outputs guide (read 2026-11-08) is precise: with <code>"strict": true</code>, it "ensures the model will always generate responses that adhere to your supplied JSON Schema". Plain JSON mode does not; it gives valid JSON, but "only Structured Outputs ensure schema adherence". Two exceptions are written into the same guide: "a refusal does not necessarily follow the schema you have supplied", and output cut off early (for example by a token limit) may not match either. Your code has to handle both.</p>
+        <p>Read the guarantee again: adherence to the schema. It says nothing about whether the value was read correctly from the photo. A misread date is still a string. So design the schema to make uncertainty speakable: nullable values, a status of <code>read</code>, <code>unreadable</code> or <code>absent</code> per field, a short evidence quote copied from the letter, and a legibility flag for the whole photo.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Asking back by voice<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Text agents show a form and let the user correct it. A caller cannot see the form, so the agent reads the critical fields aloud, one at a time, slowly, and waits. Read dates as words ("the fourteenth of March"), never as digits, because "fourteen oh three" invites the very misread you are checking for. Spell a clinician's name only if the caller hesitates.</p>
+        <p>Pick the critical fields deliberately: the ones that would book the wrong person, place or day. For Callwell that is the clinician and the letter date. If a critical field came back <code>unreadable</code>, the agent asks the caller for it ("I couldn't read the date on the letter, could you tell me what it says?"). If the caller cannot help either, the booking goes to a person.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>Never interpret clinical content: the agent routes, a clinician reads<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>The reason for referral is extracted in plain words, copied from the letter, for one purpose: picking the right service and site. The agent never paraphrases it into advice, never judges whether it sounds serious, and never answers "is that bad?". If the letter's urgency box is ticked, or the caller asks a medical question, the rule is the same: route to a person. That boundary belongs in the agent's guardrails, which <a href="https://phoebefu6.github.io/learn-ai-agents-with-phoebe/courses/b7-guardrails.html">learn-ai-agents, guardrails</a> covers; here it just becomes a line in the routing rule.</p>
+        <p>The photo itself is health information the moment it arrives. How long you keep it, who can see it and what your contracts say are questions for your privacy rules and your regulator, not for a prompt. Session 6 says the little that can be said generally about data handling on calls.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>The guarantee comes with its own exceptions, from the same page.</strong> OpenAI's Structured Outputs guide (read 2026-11-08) promises schema adherence and, a few sections later, tells you a refusal "does not necessarily follow the schema you have supplied". A production extractor checks for the refusal field and for truncated output before it parses anything, and treats both as "send to a person", not as a crash.</p>
+    </div>
+  </section>
+
+  <section class="section" id="demo-1">
+    <div class="section-kicker">
+      <span class="klabel">Build-along</span>
+      <h2>Read Callwell's invented referral letter</h2>
+      <span class="tag demo">★ 22 min · everyone builds</span>
+    </div>
+    <p class="lede">Below is the letter a Callwell caller (constructed) photographs. It is invented from top to bottom: the practice, the clinician, the patient and the date. One field is smudged on purpose. Write the six pieces in order; if your product reads a different document, an invoice, a delivery note, an insurance card, write yours alongside and keep Callwell as the worked answer. Nothing here is run for you: the example output in step 4 is constructed, and your model's will differ.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 428" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="An invented referral letter on Harbour Family Practice letterhead, addressed to Callwell Riverside, physiotherapy, from Doctor Lindqvist, for an invented patient, reason knee pain, physiotherapy assessment. The date of letter field is smudged, marked in coral. The urgency boxes read routine, ticked, and urgent, not ticked. Labels on the right name each field the booking needs: site, clinician, reason, the smudged date, urgency. A note on the left says it is a constructed sample with no real person or practice.">
+        <defs>
+          <filter id="v4dSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="59" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="v4dHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#C2412D" stroke-width="1" opacity=".5"/></pattern>
+          <marker id="v4dAc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#C2412D" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .v4dH { font: 800 12px Inter, sans-serif; fill: #10231F; }
+          .v4dL { font: 600 12px Inter, sans-serif; fill: #10231F; }
+          .v4dS { font: 400 11px Inter, sans-serif; fill: #4A5E59; }
+          .v4dB { font: 800 11px Inter, sans-serif; fill: #8F2C1C; }
+          .v4dA { font: 700 11px Inter, sans-serif; fill: #064E42; }
+          .v4dV { font: 800 16px Inter, sans-serif; fill: #064E42; }
+          .v4dN { font: 400 12px Inter, sans-serif; fill: #4A5E59; }
+        </style>
+
+        <text class="v4dH" x="30" y="24">THE LETTER, AS THE CALLER PHOTOGRAPHS IT (INVENTED, CONSTRUCTED SAMPLE)</text>
+
+        <g filter="url(#v4dSk)" fill="none" stroke="#10231F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="200" y="46" width="480" height="346" rx="6" transform="rotate(-0.5 440 219)" fill="#FFFFFF"/>
+          <path d="M220 112 L660 112" stroke="#C3D5D0"/>
+          <rect x="336" y="208" width="100" height="24" rx="4" transform="rotate(-2 386 220)" fill="url(#v4dHc)" stroke="#F07A63"/>
+          <rect x="296" y="245" width="14" height="14" rx="2" fill="#FFFFFF"/>
+          <path d="M299 252 L302 256 L308 247" stroke="#0B8470"/>
+          <rect x="376" y="245" width="14" height="14" rx="2" fill="#FFFFFF"/>
+          <path d="M224 334 c10 -18 18 10 28 -6 c8 -14 16 12 26 -4 c8 -12 14 8 24 -2" stroke="#0A6E5E"/>
+          <path d="M694 221 L446 221" stroke="#C2412D" stroke-dasharray="6 5" marker-end="url(#v4dAc)"/>
+        </g>
+
+        <text class="v4dV" x="224" y="84">Harbour Family Practice</text>
+        <text class="v4dS" x="224" y="102">invented practice, invented address</text>
+        <text class="v4dL" x="224" y="140">To: Callwell Riverside, physiotherapy</text>
+        <text class="v4dL" x="224" y="162">From: Doctor Lindqvist</text>
+        <text class="v4dL" x="224" y="184">Patient: J. Example (invented)</text>
+        <text class="v4dL" x="224" y="206">Reason: knee pain, physiotherapy assessment</text>
+        <text class="v4dL" x="224" y="226">Date of letter:</text>
+        <text class="v4dL" x="224" y="257">Urgency:</text>
+        <text class="v4dS" x="316" y="257">routine</text>
+        <text class="v4dS" x="396" y="257">urgent</text>
+        <text class="v4dS" x="224" y="292">Please assess and treat as appropriate.</text>
+        <text class="v4dL" x="224" y="362">Doctor Lindqvist</text>
+        <text class="v4dS" x="224" y="378">Harbour Family Practice (invented)</text>
+
+        <text class="v4dA" x="700" y="140">field: site</text>
+        <text class="v4dA" x="700" y="162">field: clinician</text>
+        <text class="v4dA" x="700" y="206">field: reason</text>
+        <text class="v4dB" x="700" y="225">smudged: date</text>
+        <text class="v4dA" x="700" y="257">field: urgency</text>
+        <text class="v4dS" x="700" y="184">skip: caller is on the line</text>
+
+        <text class="v4dN" x="30" y="140">constructed sample,</text>
+        <text class="v4dN" x="30" y="158">no real person,</text>
+        <text class="v4dN" x="30" y="176">no real practice,</text>
+        <text class="v4dN" x="30" y="194">no real date</text>
+
+        <text class="v4dN" x="30" y="414">Invented for teaching. Not a real letter, practice, clinician or patient.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - five fields the booking needs, one of them smudged; everything else on the page the agent can leave alone</figcaption>
+    </figure>
+
+    <div class="steps">
+      <div class="step">
+        <p><strong>List the fields the booking actually needs.</strong> Start minimal. Every extra field is one more thing to misread, confirm and store. If the booking tool would not use it, do not extract it.</p>
+        <div class="prompt-box good"><span class="label">★ Step 1 · the minimal field list</span>site          which Callwell site the letter is addressed to
+clinician     the referring clinician, for the booking note
+reason        plain words copied from the letter, for routing only
+letter_date   referrals can expire; the booking checks it
+urgency       routine or urgent, as ticked on the letter
+legibility    is the photo good enough to trust at all?
+Left out on purpose: patient details (the caller is on the line
+and already identified), the letter body, the signature</div>
+      </div>
+      <div class="step">
+        <p><strong>Write the JSON schema.</strong> Strict, every field required, each value nullable, a status that can say "unreadable", and an evidence string so a person can check the model's work later.</p>
+        <div class="prompt-box good"><span class="label">★ Step 2 · strict schema, one field shown in full</span>{
+  "name": "referral_fields",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["site", "clinician", "reason", "letter_date",
+                 "urgency", "legibility"],
+    "properties": {
+      "letter_date": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["value", "status", "evidence"],
+        "properties": {
+          "value":    { "type": ["string", "null"] },
+          "status":   { "type": "string",
+                        "enum": ["read", "unreadable", "absent"] },
+          "evidence": { "type": "string" }
+        }
+      },
+      "legibility": { "type": "string",
+                      "enum": ["clear", "partly_readable", "unreadable"] }
+      ... site, clinician, reason, urgency: same shape as letter_date
+    }
+  }
+}</div>
+      </div>
+      <div class="step">
+        <p><strong>Write the extraction instruction.</strong> It tells the model to copy, not to interpret, and makes "unreadable" the safe answer instead of a failure.</p>
+        <div class="prompt-box good"><span class="label">★ Step 3 · extraction instruction</span>You are reading a photo of a referral letter sent by a caller.
+Fill every field in the schema.
+- Copy values exactly as written. Do not correct, expand or guess.
+- If any character of a value is hard to read, set status
+  "unreadable" and value null. Do not fill in a likely value.
+- If the field is not on the letter, set status "absent".
+- evidence: quote the words you read, up to 10 words, or ""
+  if there are none.
+- reason: copy the letter's own words. Do not summarise,
+  rephrase or comment on them.
+- Do not give any medical opinion. You are routing a booking.</div>
+      </div>
+      <div class="step">
+        <p><strong>Look at an example output.</strong> This one is constructed to show the shape you want, with the smudged date coming back as unreadable rather than a confident guess. Your model's output will differ; run it on your own photos.</p>
+        <div class="prompt-box good"><span class="label">★ Step 4 · example output (constructed, your model's will differ)</span>{
+  "site":        { "value": "Callwell Riverside", "status": "read",
+                   "evidence": "To: Callwell Riverside, physiotherapy" },
+  "clinician":   { "value": "Doctor Lindqvist", "status": "read",
+                   "evidence": "From: Doctor Lindqvist" },
+  "reason":      { "value": "knee pain, physiotherapy assessment",
+                   "status": "read",
+                   "evidence": "Reason: knee pain, physiotherapy assessment" },
+  "letter_date": { "value": null, "status": "unreadable",
+                   "evidence": "Date of letter: [smudged]" },
+  "urgency":     { "value": "routine", "status": "read",
+                   "evidence": "routine box ticked" },
+  "legibility":  "partly_readable"
+}</div>
+      </div>
+      <div class="step">
+        <p><strong>Write the spoken ask-back.</strong> Critical fields only, one at a time, dates in words. The caller should be able to say "no" after each one.</p>
+        <div class="prompt-box good"><span class="label">★ Step 5 · ask-back script</span>Agent: Thanks, I've got the letter. I'll check two things with you.
+Agent: It's from Doctor Lindqvist at Harbour Family Practice.
+       Is that right?
+Caller: Yes.
+Agent: I couldn't read the date on the letter. Could you tell me
+       the date written at the top?
+Caller: The fourteenth of March.
+Agent: The fourteenth of March. Thank you.
+       I'll book you with physiotherapy at Riverside.
+(If the caller corrects a field: say the corrected value back once,
+ then store it with status "confirmed_by_caller".)</div>
+      </div>
+      <div class="step">
+        <p><strong>Write the routing rule.</strong> The cases where the agent stops reading and a person takes over, with what gets handed over so the caller does not start again.</p>
+        <div class="prompt-box good"><span class="label">★ Step 6 · routing rule</span>Route to a person (warm handoff, session 6) when ANY of:
+- a critical field (site, clinician, letter_date) is "unreadable"
+  AND the caller cannot supply it
+- legibility is "unreadable" after one request for a new photo
+- urgency is "urgent" or anything other than "routine"
+- the model refused or the output was cut off
+- the caller asks what the letter means or any medical question
+Hand over: the stored file id, the extracted fields with status
+and evidence, and which fields the caller confirmed by voice.</div>
+      </div>
+    </div>
+
+    <div class="callout tip">
+      <p><strong>"Unreadable" is a good answer.</strong> The schema made it a legal value, the instruction made it the safe one, and the ask-back turned it into a two-second question. The thing to fear is a confident wrong value that passes every check, which is exactly why the date is read back even when its status says "read".</p>
+    </div>
+  </section>
+
+  <section class="section" id="exercise">
+    <div class="section-kicker">
+      <span class="klabel">Homework</span>
+      <h2>Before session 5</h2>
+      <span class="tag exercise">30 min</span>
+    </div>
+    <ol>
+      <li><strong>Draw your own photo path.</strong> Camera to model, with where the file is stored and whether the model gets a URL, base64 or a file id. Circle every turn that would resend the image.</li>
+      <li><strong>Make five bad photos.</strong> Use an invented document of your own, never a real one: one rotated, one blurry, one folded, one in low light, one heavily compressed. Run your extractor on all five and count how many fields come back confidently wrong rather than "unreadable".</li>
+      <li><strong>Cut your field list.</strong> For each field you extract, write which tool or decision uses it. Delete any field with no answer.</li>
+      <li><strong>Say your read-back aloud.</strong> Read your ask-back script to someone over a phone. Note every place they hesitated or misheard; rewrite those lines.</li>
+    </ol>
+  </section>
+
+  <section class="section" id="quiz">
+    <div class="section-kicker">
+      <span class="klabel">Check yourself</span>
+      <h2>Three questions</h2>
+    </div>
+    <p>Clear all three and session 4 gets stamped in your passport.</p>
+
+    <div class="quiz-q" data-answer="2">
+      <p class="qtext">1 · Your extractor uses Structured Outputs with strict mode on. What does that guarantee about the letter date it returns?</p>
+      <button class="qopt" type="button">A · That the date was read correctly from the photo</button>
+      <button class="qopt" type="button">B · That the model will never refuse</button>
+      <button class="qopt" type="button">C · That the response fits the schema's shape, not that the value is right</button>
+      <button class="qopt" type="button">D · Nothing more than JSON mode does</button>
+      <p class="qwhy">OpenAI's guide promises responses that "adhere to your supplied JSON Schema": shape only. A misread "4/03" is still a valid string. Refusals and cut-off output are the guide's own exceptions, and JSON mode does not ensure schema adherence at all.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="0">
+      <p class="qtext">2 · In a ten-turn booking call, the agent sends the letter photo to the model as a base64 data URL. What happens, and what is the fix the vendor docs name?</p>
+      <button class="qopt" type="button">A · The full image is resent on every turn; upload it once and pass a Files API file id</button>
+      <button class="qopt" type="button">B · Nothing; base64 images are cached automatically after the first turn</button>
+      <button class="qopt" type="button">C · The image is dropped after one turn; resend it as a public URL instead</button>
+      <button class="qopt" type="button">D · It costs less than a file id because no upload step is needed</button>
+      <p class="qwhy">Anthropic's vision docs say base64 images are resent every turn and recommend the Files API in agent loops. A public URL is the wrong home for a referral letter anyway.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="3">
+      <p class="qtext">3 · The letter date comes back with status "unreadable". The caller, asked, cannot find the letter any more. What should the agent do?</p>
+      <button class="qopt" type="button">A · Fill in today's date so the booking can go through</button>
+      <button class="qopt" type="button">B · Ask the model again with a higher temperature until it returns a date</button>
+      <button class="qopt" type="button">C · Book anyway and leave the date blank without telling anyone</button>
+      <button class="qopt" type="button">D · Route to a person with the file id, the fields and their status, and what the caller already confirmed</button>
+      <p class="qwhy">An unreadable critical field the caller cannot supply is a routing case, not a guessing game. Handing over the file id and the confirmed fields means nobody asks the caller to start again.</p>
+    </div>
+
+    <p class="quiz-score"></p>
+  </section>
+
+  <section class="section" id="official">
+    <div class="section-kicker">
+      <span class="klabel">Sources covered</span>
+      <h2>What this session teaches, and where it came from</h2>
+    </div>
+    <div class="covered">
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">OpenAI images and vision guide (read 2026-11-08)</span><span class="note">URL, base64 and file ID inputs; detail levels and the "low is not always cheaper" caveat; documented limitations and the medical-image line, quoted</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">OpenAI Structured Outputs guide (read 2026-11-08)</span><span class="note">Schema adherence with strict mode, JSON mode by contrast, refusals and incomplete output as exceptions; adherence is shape, not a correct value</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">Anthropic Claude vision docs (read 2026-11-08)</span><span class="note">8000x8000 px and 10 MB limits, formats, 28 x 28 px patch cost and the 1,296-token example, legibility and compression tips, page labels, Files API in agent loops, stated limitations</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">OpenAI realtime conversations guide (read 2026-11-08)</span><span class="note">gpt-realtime-2 and gpt-realtime "also support image input"; model names dated, re-verify</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">OCR against a vision model, and the hybrid</span><span class="note">Taught as a design trade-off from practice; no source read compares them on referral letters</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">Callwell's referral letter, schema output and call script</span><span class="note">Constructed for teaching; invented practice, clinician and patient; no output was run</span></div>
+    </div>
+    <p class="mono" style="margin-top:14px">Every fact on this page, and its verification tier, is recorded in the course's source map.</p>
+  </section>
+
+  <section class="cheat" id="cheatsheet">
+    <h3>Session 4 cheat sheet <span>· pin this</span></h3>
+    <div class="grid-2">
+      <div class="cheat-item"><b>Store once, pass an id</b><span>Base64 is resent every turn in an agent loop; a Files API file id is not.</span></div>
+      <div class="cheat-item"><b>Know the cost</b><span>Anthropic: ceil(w/28) x ceil(h/28) visual tokens; 1000 x 1000 px is 1,296. OpenAI: low detail is not always cheaper.</span></div>
+      <div class="cheat-item"><b>OCR or vision</b><span>OCR: words and confidence, no meaning. Vision model: meaning, no calibrated confidence. Hybrid: both.</span></div>
+      <div class="cheat-item"><b>Schema is shape</b><span>Strict mode guarantees the JSON fits. It never guarantees the value was read right. Check refusals and cut-offs.</span></div>
+      <div class="cheat-item"><b>Make "unreadable" legal</b><span>Nullable values, a status enum, an evidence quote, a legibility flag.</span></div>
+      <div class="cheat-item"><b>Read it back, then route</b><span>Critical fields aloud, dates in words. Unreadable and unrecoverable, urgent, or clinical: a person.</span></div>
+    </div>
+  </section>
+
+  <div class="callout next">
+    <span class="nx-pill">Next session</span>
+    <p>You now have transcripts, timings, a photo path and read-back confirmations, and no way yet to say whether the agent is good. Session 5 builds evals for a conversation you cannot read: word error rate on Callwell's constructed transcripts, why the highest-WER line can still book correctly, and what to measure next to it.</p>
+  </div>
+
+  <footer class="pagefoot">
+    <span>Session 4 of 6 · learn-voice-multimodal-agents-with-phoebe · by Phoebe Fu &nbsp;·&nbsp; 📚 <a href="https://phoebefu6.github.io/learn-with-phoebe/">Learn with Phoebe ↗</a></span>
+    <span><a href="03-turn-taking.html">← Prev: Turn-taking</a> &nbsp;·&nbsp; <a href="05-evals-you-cannot-read.html">Next: Evals you cannot read →</a></span>
+  </footer>
+
+</main>
+
+<script src="../assets/app.js?v=1"></script>
+</body>
+</html>
